@@ -1,0 +1,18 @@
+version = 0.1
+
+[default]
+[default.global.parameters]
+stack_name = "sustain-the-globe-dev"
+
+[default.local_start_api.parameters]
+port = 3000
+warm_containers = "EAGER"
+env_vars = "local-env.json"
+
+[default.deploy.parameters]
+stack_name = "sustain-the-globe-dev"
+resolve_s3 = true
+s3_prefix = "sustain-the-globe-dev"
+region = "us-east-1"
+capabilities = "CAPABILITY_IAM"
+confirm_changeset = false

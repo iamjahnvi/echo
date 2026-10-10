@@ -1,0 +1,95 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: SustainTheGlobe backend API
+
+Globals:
+  Function:
+    Runtime: nodejs24.x
+    Timeout: 30
+    MemorySize: 256
+    Environment:
+      Variables:
+        TABLE_NAME: sustain-the-globe-dev
+
+Resources:
+  HealthFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ./
+      Handler: dist/handlers/health.handler
+      Events:
+        HealthApi:
+          Type: Api
+          Properties:
+            Path: /health
+            Method: get
+
+  DataTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: sustain-the-globe-dev
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: pk
+          AttributeType: S
+        - AttributeName: sk
+          AttributeType: S
+      KeySchema:
+        - AttributeName: pk
+          KeyType: HASH
+        - AttributeName: sk
+          KeyType: RANGE
+
+  ActionsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ./
+      Handler: dist/handlers/actions.createHandler
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref DataTable
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref DataTable
+      Events:
+        CreateAction:
+          Type: Api
+          Properties:
+            Path: /actions
+            Method: post
+
+  ActionsListFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ./
+      Handler: dist/handlers/actions.listHandler
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref DataTable
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref DataTable
+      Events:
+        ListActions:
+          Type: Api
+          Properties:
+            Path: /actions
+            Method: get
+
+  PointsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ./
+      Handler: dist/handlers/points.handler
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref DataTable
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref DataTable
+      Events:
+        GetPoints:
+          Type: Api
+          Properties:
+            Path: /points
+            Method: get

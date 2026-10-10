@@ -1,0 +1,9 @@
+{
+  "HealthFunction": {
+    "TABLE_NAME": "sustain-the-globe-dev",
+    "AWS_REGION": "us-east-1",
+    "DYNAMODB_ENDPOINT": "http://host.docker.internal:4566",
+    "AWS_ACCESS_KEY_ID": "test",
+    "AWS_SECRET_ACCESS_KEY": "test"
+  }
+}

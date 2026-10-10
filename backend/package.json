@@ -1,0 +1,25 @@
+{
+  "name": "sustain-the-globe-api",
+  "version": "1.0.0",
+  "description": "SustainTheGlobe backend API (AWS SAM + Lambda nodejs24.x + DynamoDB + S3)",
+  "type": "commonjs",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "tsc",
+    "test": "npm run build && node --test dist/tests/*.test.js",
+    "seed": "npm run build && node dist/seed.js",
+    "seed:dry-run": "npm run build && node dist/seed.js --dry-run"
+  },
+  "dependencies": {
+    "@aws-sdk/client-dynamodb": "^3.600.0",
+    "@aws-sdk/lib-dynamodb": "^3.600.0",
+    "@aws-sdk/client-s3": "^3.600.0"
+  },
+  "devDependencies": {
+    "@types/aws-lambda": "^8.10.0",
+    "@types/node": "^20.0.0",
+    "typescript": "^5.4.0"
+  }
+}
