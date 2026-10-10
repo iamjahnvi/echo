@@ -13,6 +13,6 @@ env_vars = "local-env.json"
 stack_name = "sustain-the-globe-dev"
 resolve_s3 = true
 s3_prefix = "sustain-the-globe-dev"
-region = "us-east-1"
+region = "ap-southeast-2"
 capabilities = "CAPABILITY_IAM"
 confirm_changeset = false
