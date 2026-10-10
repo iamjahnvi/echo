@@ -1,0 +1,13 @@
+node_modules/
+dist/
+.aws-sam/
+*.log
+.env
+.env.local
+sustaintheglobe-web/.env
+sustaintheglobe-web/dist/
+backend/dist/
+SustainTheGlobeApp/app/google-services.json
+SustainTheGlobeApp/**/build/
+SustainTheGlobeApp/**/.gradle/
+localstack-data/
