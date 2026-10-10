@@ -93,3 +93,37 @@ Resources:
           Properties:
             Path: /points
             Method: get
+
+  PhotosBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      # Private by default: block all public access, encrypt at rest, no website hosting.
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      VersioningConfiguration:
+        Status: Suspended
+
+  UploadsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ./
+      Handler: dist/handlers/uploads.handler
+      Environment:
+        Variables:
+          PHOTOS_BUCKET: !Ref PhotosBucket
+      Policies:
+        - S3WritePolicy:
+            BucketName: !Ref PhotosBucket
+      Events:
+        CreateUpload:
+          Type: Api
+          Properties:
+            Path: /uploads
+            Method: post

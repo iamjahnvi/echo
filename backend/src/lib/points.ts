@@ -40,6 +40,8 @@ export interface ActionInput extends PhotoMeta {
   clientActionId: string;
   actionType: ActionType;
   note?: string;
+  /** S3 key from POST /uploads. Must belong to userId (checked below). */
+  photoKey?: string;
 }
 
 export interface ValidationSuccess {
@@ -78,7 +80,7 @@ export function validateActionInput(
   body: unknown,
 ): ValidationSuccess | ValidationFailure {
   if (!isRecord(body)) return { ok: false, error: 'Request body must be JSON.' };
-  const { userId, clientActionId, actionType, note, photoName, photoSize, photoType } = body;
+  const { userId, clientActionId, actionType, note, photoName, photoSize, photoType, photoKey } = body;
 
   if (typeof userId !== 'string' || userId.trim() === '')
     return { ok: false, error: 'userId is required.' };
@@ -117,6 +119,15 @@ export function validateActionInput(
     if (typeof photoType !== 'string' || !/^image\/[a-z0-9.+-]+$/.test(photoType))
       return { ok: false, error: 'photoType must be an image MIME type.' };
   }
+  if (photoKey !== undefined) {
+    if (typeof photoKey !== 'string' || photoKey.trim() === '')
+      return { ok: false, error: 'photoKey must be a non-empty string.' };
+    if (photoKey.length > 512) return { ok: false, error: 'photoKey is too long.' };
+    // Key must have been issued to this user via POST /uploads
+    // (prefix check; exact user binding enforced below).
+    if (!photoKey.startsWith('uploads/'))
+      return { ok: false, error: 'photoKey is not a valid upload key.' };
+  }
 
   const value: ActionInput = {
     userId: userId.trim(),
@@ -127,5 +138,19 @@ export function validateActionInput(
   if (photoName !== undefined) value.photoName = photoName.trim();
   if (photoSize !== undefined) value.photoSize = photoSize as number;
   if (photoType !== undefined) value.photoType = photoType;
+  if (photoKey !== undefined) {
+    // Enforce user binding without importing uploads lib (avoid cycles):
+    // key shape is uploads/<sanitized-userId>/<...>
+    const seg = userId
+      .trim()
+      .replace(/[^A-Za-z0-9_-]+/g, '-')
+      .replace(/-+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .slice(0, 64);
+    const expected = `uploads/${seg === '' ? 'user' : seg}/`;
+    if (!(photoKey as string).startsWith(expected))
+      return { ok: false, error: 'photoKey does not belong to this user.' };
+    value.photoKey = (photoKey as string).trim();
+  }
   return { ok: true, value };
 }

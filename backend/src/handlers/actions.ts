@@ -46,6 +46,7 @@ export interface ActionRecord {
   photoName?: string;
   photoSize?: number;
   photoType?: string;
+  photoKey?: string;
   createdAt: string;
 }
 
@@ -73,6 +74,7 @@ export async function createActionCore(
   if (v.value.photoName !== undefined) item.photoName = v.value.photoName;
   if (v.value.photoSize !== undefined) item.photoSize = v.value.photoSize;
   if (v.value.photoType !== undefined) item.photoType = v.value.photoType;
+  if (v.value.photoKey !== undefined) item.photoKey = v.value.photoKey;
 
   try {
     await d.doc.send(
@@ -142,6 +144,7 @@ export async function listActionsCore(
       points: it.points,
       note: it.note,
       photoName: it.photoName,
+      photoKey: it.photoKey,
       createdAt: it.createdAt,
     }))
     .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
