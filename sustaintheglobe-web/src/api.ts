@@ -333,6 +333,11 @@ export async function fetchHealth(
   const looksLikeHtml =
     contentType === 'text/html' || /^\s*(?:<!doctype\s+html|<html\b)/i.test(raw);
   if (!res.ok) {
+    if (base.startsWith('/api') && /\bECONNREFUSED\b/i.test(raw)) {
+      throw new Error(
+        `Health check failed: HTTP ${res.status}. The local API proxy cannot connect to SAM at 127.0.0.1:3000 (connection refused). Start the backend.`,
+      );
+    }
     const diagnostic = !looksLikeHtml
       ? ''
       : base.startsWith('/api')

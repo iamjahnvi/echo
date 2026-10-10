@@ -88,6 +88,16 @@ describe('fetchHealth', () => {
     );
   });
 
+  it('reports local SAM connection refusal as an unsuccessful health check', async () => {
+    const fetcher = vi.fn(async () => new Response(
+      'http proxy error: Error: connect ECONNREFUSED 127.0.0.1:3000',
+      { status: 500, headers: { 'Content-Type': 'text/plain' } },
+    ));
+    await expect(fetchHealth('/api', fetcher)).rejects.toThrow(
+      'HTTP 500. The local API proxy cannot connect to SAM at 127.0.0.1:3000',
+    );
+  });
+
   it('throws on invalid JSON', async () => {
     const fetcher = vi.fn(
       async () => new Response('not-json{{{', { status: 200 }),
