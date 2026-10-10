@@ -6,6 +6,11 @@ import {
   calculatePoints,
   validateActionInput,
 } from '../lib/points.js';
+import {
+  getAuthIdentity,
+  unauthorizedBody,
+  type AuthIdentity,
+} from '../lib/auth.js';
 
 export interface StoreDeps {
   // Minimal structural type so tests can inject a stub without AWS.
@@ -50,12 +55,22 @@ export interface ActionRecord {
   createdAt: string;
 }
 
-/** POST /actions core: validate → server-computed points → idempotent conditional write. */
+/**
+ * POST /actions core: authenticate → validate → server-computed points →
+ * idempotent conditional write. Any caller-supplied userId is IGNORED; the
+ * data owner is always the verified token identity.
+ */
 export async function createActionCore(
   rawBody: unknown,
+  auth: AuthIdentity | null,
   d: StoreDeps = deps(),
 ): Promise<{ statusCode: number; body: Record<string, unknown> }> {
-  const v = validateActionInput(rawBody);
+  if (auth === null) return { statusCode: 401, body: unauthorizedBody() };
+  const merged =
+    typeof rawBody === 'object' && rawBody !== null
+      ? { ...(rawBody as Record<string, unknown>), userId: auth.userId }
+      : { userId: auth.userId };
+  const v = validateActionInput(merged);
   if (!v.ok) return { statusCode: 400, body: { message: v.error } };
 
   const points = calculatePoints(v.value.actionType);
@@ -112,17 +127,60 @@ export const createHandler = async (
   } catch {
     return json(400, { message: 'Request body must be JSON.' });
   }
-  const r = await createActionCore(parsed);
+  const r = await createActionCore(parsed, getAuthIdentity(event));
   return json(r.statusCode, r.body);
 };
 
-/** GET /actions?userId= core: newest-first list, capped. */
+export const MAX_LIST_LIMIT = 50;
+
+function encodeCursor(key: Record<string, unknown>): string {
+  return Buffer.from(JSON.stringify(key), 'utf8').toString('base64url');
+}
+
+function decodeCursor(
+  raw: unknown,
+): { ok: true; key: Record<string, unknown> } | { ok: false } {
+  if (typeof raw !== 'string' || raw === '') return { ok: false };
+  try {
+    const parsed: unknown = JSON.parse(
+      Buffer.from(raw, 'base64url').toString('utf8'),
+    );
+    if (typeof parsed !== 'object' || parsed === null) return { ok: false };
+    return { ok: true, key: parsed as Record<string, unknown> };
+  } catch {
+    return { ok: false };
+  }
+}
+
+/**
+ * GET /actions core: the query-string userId (if any) is IGNORED — callers can
+ * only ever read their own actions. Returns newest-first list with limit/cursor
+ * pagination.
+ */
 export async function listActionsCore(
-  userId: unknown,
+  auth: AuthIdentity | null,
+  opts?: { limit?: unknown; nextToken?: unknown },
   d: StoreDeps = deps(),
 ): Promise<{ statusCode: number; body: Record<string, unknown> }> {
-  if (typeof userId !== 'string' || userId.trim() === '')
-    return { statusCode: 400, body: { message: 'userId query parameter is required.' } };
+  if (auth === null) return { statusCode: 401, body: unauthorizedBody() };
+  const userId = auth.userId;
+  let limit = MAX_LIST_LIMIT;
+  if (opts?.limit !== undefined) {
+    const n = typeof opts.limit === 'string' ? Number(opts.limit) : opts.limit;
+    if (!Number.isInteger(n) || (n as number) < 1 || (n as number) > MAX_LIST_LIMIT)
+      return {
+        statusCode: 400,
+        body: { message: `limit must be an integer 1..${MAX_LIST_LIMIT}.` },
+      };
+    limit = n as number;
+  }
+  let startKey: Record<string, unknown> | undefined;
+  if (opts?.nextToken !== undefined) {
+    const c = decodeCursor(opts.nextToken);
+    if (!c.ok)
+      return { statusCode: 400, body: { message: 'nextToken is invalid.' } };
+    startKey = c.key;
+  }
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const out = (await d.doc.send(
     new QueryCommand({
@@ -130,13 +188,14 @@ export async function listActionsCore(
       KeyConditionExpression: 'pk = :pk',
       FilterExpression: 'begins_with(sk, :prefix)',
       ExpressionAttributeValues: {
-        ':pk': `USER#${userId.trim()}`,
+        ':pk': `USER#${userId}`,
         ':prefix': 'ACTION#',
       },
-      Limit: 50,
+      Limit: limit,
+      ...(startKey ? { ExclusiveStartKey: startKey } : {}),
     }),
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  )) as { Items?: any[] };
+  )) as { Items?: any[]; LastEvaluatedKey?: Record<string, unknown> };
   const actions = (out.Items ?? [])
     .map((it) => ({
       actionId: it.clientActionId,
@@ -148,12 +207,21 @@ export async function listActionsCore(
       createdAt: it.createdAt,
     }))
     .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
-  return { statusCode: 200, body: { userId: userId.trim(), count: actions.length, actions } };
+  const body: Record<string, unknown> = {
+    userId,
+    count: actions.length,
+    actions,
+  };
+  if (out.LastEvaluatedKey) body.nextToken = encodeCursor(out.LastEvaluatedKey);
+  return { statusCode: 200, body };
 }
 
 export const listHandler = async (
   event: APIGatewayProxyEvent,
 ): Promise<APIGatewayProxyResult> => {
-  const r = await listActionsCore(event.queryStringParameters?.userId);
+  const r = await listActionsCore(getAuthIdentity(event), {
+    limit: event.queryStringParameters?.limit,
+    nextToken: event.queryStringParameters?.nextToken,
+  });
   return json(r.statusCode, r.body);
 };

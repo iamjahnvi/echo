@@ -10,6 +10,11 @@ import {
   putPhotoBytes,
   validatePhotoFile,
   newClientActionId,
+  authHeaders,
+  isSessionExpired,
+  getMe,
+  getLeaderboard,
+  deleteUpload,
 } from './api';
 
 function jsonResponse(body: unknown, status = 200): Response {
@@ -95,75 +100,95 @@ describe('fetchHealth', () => {
 });
 
 const BASE = 'http://127.0.0.1:3000';
+const TOKEN = 'test-access-token';
 
 describe('submitAction', () => {
   const input = {
-    userId: 'u1',
+    userId: 'token-owner',
     clientActionId: 'a1',
     actionType: 'recycle' as const,
   };
 
-  it('POSTs to /actions and returns server-computed award', async () => {
+  it('POSTs to /actions with a Bearer token and returns server-computed award', async () => {
     const fetcher = vi.fn(async () =>
       jsonResponse({ actionId: 'a1', pointsAwarded: 10, createdAt: 'x' }),
     );
-    const r = await submitAction(BASE, input, fetcher);
+    const r = await submitAction(BASE, input, TOKEN, fetcher);
     expect(r.pointsAwarded).toBe(10);
     const [url, init] = fetcher.mock.calls[0] as unknown as [string, RequestInit];
     expect(url).toBe(`${BASE}/actions`);
     expect((init?.body as string) ?? '').toContain('recycle');
+    expect((init?.headers as Record<string, string>).Authorization).toBe(
+      `Bearer ${TOKEN}`,
+    );
+  });
+
+  it('rejects missing token without calling fetch', async () => {
+    const fetcher = vi.fn();
+    await expect(submitAction(BASE, input, '', fetcher)).rejects.toThrow(
+      'Not signed in',
+    );
+    expect(fetcher).not.toHaveBeenCalled();
   });
 
   it('maps 409 duplicates to a no-double-award message', async () => {
     const fetcher = vi.fn(async () => jsonResponse({ message: 'dup' }, 409));
-    await expect(submitAction(BASE, input, fetcher)).rejects.toThrow(
+    await expect(submitAction(BASE, input, TOKEN, fetcher)).rejects.toThrow(
       'no extra points',
     );
   });
 
   it('maps 400 to an invalid-input message and wraps network errors', async () => {
     const bad = vi.fn(async () => jsonResponse({ message: 'nope' }, 400));
-    await expect(submitAction(BASE, input, bad)).rejects.toThrow('Invalid action');
+    await expect(submitAction(BASE, input, TOKEN, bad)).rejects.toThrow('Invalid action');
     const down = vi.fn(async () => {
       throw new TypeError('down');
     });
-    await expect(submitAction(BASE, input, down)).rejects.toThrow('Request failed');
+    await expect(submitAction(BASE, input, TOKEN, down)).rejects.toThrow('Request failed');
   });
 
-  it('requires base URL and user ID without calling fetch', async () => {
+  it('requires base URL without calling fetch', async () => {
     const fetcher = vi.fn();
-    await expect(submitAction('', input, fetcher)).rejects.toThrow('not configured');
-    await expect(
-      submitAction(BASE, { ...input, userId: ' ' }, fetcher),
-    ).rejects.toThrow('User ID is required');
+    await expect(submitAction('', input, TOKEN, fetcher)).rejects.toThrow('not configured');
     expect(fetcher).not.toHaveBeenCalled();
   });
 });
 
 describe('listActions / getPoints', () => {
-  it('GETs the right URLs and returns parsed bodies', async () => {
+  it('GETs the token-protected URLs (no userId in the URL) and returns bodies', async () => {
     const listFetch = vi.fn(async () =>
-      jsonResponse({ userId: 'u1', count: 1, actions: [] }),
+      jsonResponse({ userId: 'sub', count: 1, actions: [] }),
     );
-    await listActions(BASE, 'u1', listFetch);
-    expect(listFetch).toHaveBeenCalledWith(`${BASE}/actions?userId=u1`);
+    await listActions(BASE, TOKEN, listFetch);
+    const [listUrl, listInit] = listFetch.mock.calls[0] as unknown as [string, RequestInit];
+    expect(listUrl).toBe(`${BASE}/actions`);
+    expect((listInit?.headers as Record<string, string>).Authorization).toBe(
+      `Bearer ${TOKEN}`,
+    );
 
     const ptsFetch = vi.fn(async () =>
-      jsonResponse({ userId: 'u1', totalPoints: 35, actionCount: 2 }),
+      jsonResponse({ userId: 'sub', totalPoints: 35, actionCount: 2 }),
     );
-    const pts = await getPoints(BASE, 'u1', ptsFetch);
+    const pts = await getPoints(BASE, TOKEN, ptsFetch);
     expect(pts.totalPoints).toBe(35);
-    expect(ptsFetch).toHaveBeenCalledWith(`${BASE}/points?userId=u1`);
+    const [ptsUrl] = ptsFetch.mock.calls[0] as unknown as [string];
+    expect(ptsUrl).toBe(`${BASE}/points`);
   });
 
-  it('throws on HTTP errors and requires user ID', async () => {
+  it('throws on HTTP errors and rejects missing token', async () => {
     const err = vi.fn(async () => jsonResponse({}, 500));
-    await expect(listActions(BASE, 'u1', err)).rejects.toThrow('HTTP 500');
-    await expect(getPoints(BASE, 'u1', err)).rejects.toThrow('HTTP 500');
+    await expect(listActions(BASE, TOKEN, err)).rejects.toThrow('HTTP 500');
+    await expect(getPoints(BASE, TOKEN, err)).rejects.toThrow('HTTP 500');
     const fetcher = vi.fn();
-    await expect(listActions(BASE, '', fetcher)).rejects.toThrow('User ID');
-    await expect(getPoints(BASE, '', fetcher)).rejects.toThrow('User ID');
+    await expect(listActions(BASE, '', fetcher)).rejects.toThrow('Not signed in');
+    await expect(getPoints(BASE, '', fetcher)).rejects.toThrow('Not signed in');
     expect(fetcher).not.toHaveBeenCalled();
+  });
+
+  it('detects expired sessions from 401 errors', () => {
+    expect(isSessionExpired(new Error('Request failed: HTTP 401'))).toBe(true);
+    expect(isSessionExpired(new Error('Request failed: HTTP 500'))).toBe(false);
+    expect(authHeaders(TOKEN)).toEqual({ Authorization: `Bearer ${TOKEN}` });
   });
 });
 
@@ -178,31 +203,40 @@ describe('photo upload flow', () => {
     );
   });
 
-  it('requestUploadUrl POSTs to /uploads and returns the ticket', async () => {
+  it('requestUploadUrl POSTs to /uploads with a Bearer token and returns the ticket', async () => {
     const fetcher = vi.fn(async () =>
       jsonResponse({ uploadUrl: 'https://s3.example/put', photoKey: 'uploads/u1/a1.png', expiresIn: 300 }),
     );
     const t = await requestUploadUrl(
       BASE,
-      { userId: 'u1', clientActionId: 'a1', photoType: 'image/png', photoSize: 10 },
+      { clientActionId: 'a1', photoType: 'image/png', photoSize: 10 },
+      TOKEN,
       fetcher,
     );
     expect(t.photoKey).toBe('uploads/u1/a1.png');
-    const [url] = fetcher.mock.calls[0] as unknown as [string];
+    const [url, init] = fetcher.mock.calls[0] as unknown as [string, RequestInit];
     expect(url).toBe(`${BASE}/uploads`);
+    expect((init?.headers as Record<string, string>).Authorization).toBe(
+      `Bearer ${TOKEN}`,
+    );
   });
 
   it('requestUploadUrl maps 400 rejections and wraps network failures', async () => {
     const rej = vi.fn(async () => jsonResponse({ message: 'bad' }, 400));
     await expect(
-      requestUploadUrl(BASE, { userId: 'u1', clientActionId: 'a', photoType: 'image/gif', photoSize: 1 }, rej),
+      requestUploadUrl(BASE, { clientActionId: 'a', photoType: 'image/gif', photoSize: 1 }, TOKEN, rej),
     ).rejects.toThrow('rejected by server');
     const down = vi.fn(async () => {
       throw new TypeError('down');
     });
     await expect(
-      requestUploadUrl(BASE, { userId: 'u1', clientActionId: 'a', photoType: 'image/png', photoSize: 1 }, down),
+      requestUploadUrl(BASE, { clientActionId: 'a', photoType: 'image/png', photoSize: 1 }, TOKEN, down),
     ).rejects.toThrow('Upload request failed');
+    const anon = vi.fn();
+    await expect(
+      requestUploadUrl(BASE, { clientActionId: 'a', photoType: 'image/png', photoSize: 1 }, '', anon),
+    ).rejects.toThrow('Not signed in');
+    expect(anon).not.toHaveBeenCalled();
   });
 
   it('putPhotoBytes PUTs bytes with content type and throws on HTTP/network failure', async () => {
@@ -227,5 +261,62 @@ describe('photo upload flow', () => {
 
   it('newClientActionId generates unique ids', () => {
     expect(newClientActionId()).not.toBe(newClientActionId());
+  });
+});
+
+describe('profile, leaderboard, orphan cleanup', () => {
+  it('getMe GETs /me with Bearer and returns the profile', async () => {
+    const fetcher = vi.fn(async () =>
+      jsonResponse({ userId: 'sub-1', email: 'a@example.com' }),
+    );
+    const me = await getMe(BASE, TOKEN, fetcher);
+    expect(me.email).toBe('a@example.com');
+    const [url, init] = fetcher.mock.calls[0] as unknown as [string, RequestInit];
+    expect(url).toBe(`${BASE}/me`);
+    expect((init?.headers as Record<string, string>).Authorization).toBe(
+      `Bearer ${TOKEN}`,
+    );
+  });
+
+  it('getLeaderboard GETs /leaderboard with limit and Bearer', async () => {
+    const fetcher = vi.fn(async () =>
+      jsonResponse({ leaders: [{ displayId: 'user-1', totalPoints: 40, actionCount: 2 }], participantCount: 1 }),
+    );
+    const board = await getLeaderboard(BASE, TOKEN, 5, fetcher);
+    expect(board.participantCount).toBe(1);
+    expect(board.leaders[0].totalPoints).toBe(40);
+    const [url] = fetcher.mock.calls[0] as unknown as [string];
+    expect(url).toBe(`${BASE}/leaderboard?limit=5`);
+  });
+
+  it('getMe/getLeaderboard reject missing token and surface HTTP errors', async () => {
+    const fetcher = vi.fn();
+    await expect(getMe(BASE, '', fetcher)).rejects.toThrow('Not signed in');
+    await expect(getLeaderboard(BASE, '', 10, fetcher)).rejects.toThrow('Not signed in');
+    expect(fetcher).not.toHaveBeenCalled();
+    const err = vi.fn(async () => jsonResponse({}, 401));
+    await expect(getMe(BASE, TOKEN, err)).rejects.toThrow('401');
+  });
+
+  it('deleteUpload sends authed DELETE and tolerates cleanup failures', async () => {
+    const ok = vi.fn(async () => jsonResponse({ deleted: true }));
+    await deleteUpload(BASE, 'uploads/sub/a.jpg', TOKEN, ok);
+    const [url, init] = ok.mock.calls[0] as unknown as [string, RequestInit];
+    expect(url).toBe(`${BASE}/uploads?photoKey=${encodeURIComponent('uploads/sub/a.jpg')}`);
+    expect(init?.method).toBe('DELETE');
+    expect((init?.headers as Record<string, string>).Authorization).toBe(
+      `Bearer ${TOKEN}`,
+    );
+
+    const down = vi.fn(async () => {
+      throw new TypeError('down');
+    });
+    await expect(
+      deleteUpload(BASE, 'uploads/sub/a.jpg', TOKEN, down),
+    ).resolves.toBeUndefined(); // best-effort: never throws
+    const gone = vi.fn(async () => jsonResponse({}, 500));
+    await expect(
+      deleteUpload(BASE, 'uploads/sub/a.jpg', TOKEN, gone),
+    ).resolves.toBeUndefined();
   });
 });

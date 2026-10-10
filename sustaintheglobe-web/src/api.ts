@@ -14,12 +14,17 @@ export function buildHealthUrl(baseUrl: string): string {
 
 type FetchFn = (input: string, init?: RequestInit) => Promise<Response>;
 
-async function postJson<T>(url: string, payload: unknown, fetcher: FetchFn): Promise<T> {
+async function postJson<T>(
+  url: string,
+  payload: unknown,
+  fetcher: FetchFn,
+  headers?: Record<string, string>,
+): Promise<T> {
   let res: Response;
   try {
     res = await fetcher(url, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...(headers ?? {}) },
       body: JSON.stringify(payload),
     });
   } catch (err) {
@@ -37,10 +42,10 @@ async function postJson<T>(url: string, payload: unknown, fetcher: FetchFn): Pro
   }
 }
 
-async function getJson<T>(url: string, fetcher: FetchFn): Promise<T> {
+async function getJson<T>(url: string, fetcher: FetchFn, headers?: Record<string, string>): Promise<T> {
   let res: Response;
   try {
-    res = await fetcher(url);
+    res = await fetcher(url, headers ? { headers } : undefined);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     throw new Error(`Request failed: ${msg}`);
@@ -78,16 +83,18 @@ export interface UploadTicket {
 
 export async function requestUploadUrl(
   baseUrl: string,
-  input: { userId: string; clientActionId: string; photoType: string; photoSize: number },
+  input: { clientActionId: string; photoType: string; photoSize: number },
+  token: string,
   fetcher: FetchFn = globalThis.fetch.bind(globalThis),
 ): Promise<UploadTicket> {
   const base = baseUrl.trim().replace(/\/+$/, '');
   if (base === '') throw new Error('API URL is not configured (VITE_API_URL).');
+  requireToken(token);
   let res: Response;
   try {
     res = await fetcher(`${base}/uploads`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...authHeaders(token) },
       body: JSON.stringify(input),
     });
   } catch (err) {
@@ -170,6 +177,21 @@ export interface PointsSummary {
   actionCount: number;
 }
 
+/** Authorization header for protected API calls. Never logs the token itself. */
+export function authHeaders(token: string): Record<string, string> {
+  return { Authorization: `Bearer ${token}` };
+}
+
+/** True when an API error means the session expired/invalid → re-authenticate. */
+export function isSessionExpired(err: unknown): boolean {
+  const msg = err instanceof Error ? err.message : String(err);
+  return /\b401\b/.test(msg);
+}
+
+function requireToken(token: string): void {
+  if (token.trim() === '') throw new Error('Not signed in.');
+}
+
 export function newClientActionId(): string {
   const c = globalThis.crypto as undefined | { randomUUID?: () => string };
   if (c?.randomUUID) return c.randomUUID();
@@ -179,34 +201,93 @@ export function newClientActionId(): string {
 export async function submitAction(
   baseUrl: string,
   input: SubmitActionInput,
+  token: string,
   fetcher: FetchFn = globalThis.fetch.bind(globalThis),
 ): Promise<SubmitActionResult> {
   const base = baseUrl.trim().replace(/\/+$/, '');
   if (base === '') throw new Error('API URL is not configured (VITE_API_URL).');
-  if (input.userId.trim() === '') throw new Error('User ID is required.');
-  return postJson<SubmitActionResult>(`${base}/actions`, input, fetcher);
+  requireToken(token);
+  return postJson<SubmitActionResult>(`${base}/actions`, input, fetcher, authHeaders(token));
 }
 
 export async function listActions(
   baseUrl: string,
-  userId: string,
+  token: string,
   fetcher: FetchFn = globalThis.fetch.bind(globalThis),
 ): Promise<{ actions: ActionItem[]; count: number }> {
   const base = baseUrl.trim().replace(/\/+$/, '');
   if (base === '') throw new Error('API URL is not configured (VITE_API_URL).');
-  if (userId.trim() === '') throw new Error('User ID is required.');
-  return getJson(`${base}/actions?userId=${encodeURIComponent(userId.trim())}`, fetcher);
+  requireToken(token);
+  return getJson(`${base}/actions`, fetcher, authHeaders(token));
 }
 
 export async function getPoints(
   baseUrl: string,
-  userId: string,
+  token: string,
   fetcher: FetchFn = globalThis.fetch.bind(globalThis),
 ): Promise<PointsSummary> {
   const base = baseUrl.trim().replace(/\/+$/, '');
   if (base === '') throw new Error('API URL is not configured (VITE_API_URL).');
-  if (userId.trim() === '') throw new Error('User ID is required.');
-  return getJson(`${base}/points?userId=${encodeURIComponent(userId.trim())}`, fetcher);
+  requireToken(token);
+  return getJson(`${base}/points`, fetcher, authHeaders(token));
+}
+
+export interface UserProfile {
+  userId: string;
+  email: string | null;
+}
+
+export interface LeaderEntry {
+  displayId: string;
+  totalPoints: number;
+  actionCount: number;
+}
+
+export async function getMe(
+  baseUrl: string,
+  token: string,
+  fetcher: FetchFn = globalThis.fetch.bind(globalThis),
+): Promise<UserProfile> {
+  const base = baseUrl.trim().replace(/\/+$/, '');
+  if (base === '') throw new Error('API URL is not configured (VITE_API_URL).');
+  requireToken(token);
+  return getJson(`${base}/me`, fetcher, authHeaders(token));
+}
+
+export async function getLeaderboard(
+  baseUrl: string,
+  token: string,
+  limit = 10,
+  fetcher: FetchFn = globalThis.fetch.bind(globalThis),
+): Promise<{ leaders: LeaderEntry[]; participantCount: number }> {
+  const base = baseUrl.trim().replace(/\/+$/, '');
+  if (base === '') throw new Error('API URL is not configured (VITE_API_URL).');
+  requireToken(token);
+  return getJson(`${base}/leaderboard?limit=${limit}`, fetcher, authHeaders(token));
+}
+
+/** Best-effort orphan cleanup: delete our own uploaded object after a failed submit. */
+export async function deleteUpload(
+  baseUrl: string,
+  photoKey: string,
+  token: string,
+  fetcher: FetchFn = globalThis.fetch.bind(globalThis),
+): Promise<void> {
+  const base = baseUrl.trim().replace(/\/+$/, '');
+  if (base === '') throw new Error('API URL is not configured (VITE_API_URL).');
+  requireToken(token);
+  let res: Response;
+  try {
+    res = await fetcher(
+      `${base}/uploads?photoKey=${encodeURIComponent(photoKey)}`,
+      { method: 'DELETE', headers: authHeaders(token) },
+    );
+  } catch {
+    return; // cleanup is best-effort; the submit error is what matters.
+  }
+  if (!res.ok && res.status !== 404) {
+    return;
+  }
 }
 
 export async function fetchHealth(

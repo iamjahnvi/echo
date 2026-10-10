@@ -2,8 +2,9 @@ import React, { useEffect, useState } from 'react';
 import { BrowserRouter, Routes, Route, Link } from 'react-router-dom';
 import { create } from 'zustand';
 import moment from 'moment';
-import { fetchHealth, getApiBaseUrl, listActions, getPoints, submitAction, requestUploadUrl, putPhotoBytes, validatePhotoFile, newClientActionId } from './api';
-import type { ActionItem } from './api';
+import { fetchHealth, getApiBaseUrl, listActions, getPoints, getMe, getLeaderboard, deleteUpload, submitAction, requestUploadUrl, putPhotoBytes, validatePhotoFile, newClientActionId, isSessionExpired } from './api';
+import type { ActionItem, LeaderEntry } from './api';
+import { AuthProvider, useAuth, isValidEmail } from './auth';
 
 type Store = { count: number; inc: () => void };
 export const useStore = create<Store>((set) => ({
@@ -63,7 +64,9 @@ function Home() {
       <p>Count: {count}</p>
       <button onClick={inc}>Increment</button>
       {mode !== 'firebase' && apiBase !== '' ? (
-        <ActionsPanel apiBase={apiBase} />
+        <AuthProvider>
+          <AwsSection apiBase={apiBase} />
+        </AuthProvider>
       ) : null}
       <nav>
         <Link to="/about">About</Link>
@@ -72,8 +75,184 @@ function Home() {
   );
 }
 
-function ActionsPanel({ apiBase }: { apiBase: string }) {
-  const [userId, setUserId] = useState('demo-user');
+function AwsSection({ apiBase }: { apiBase: string }) {
+  const auth = useAuth();
+  const [profileEmail, setProfileEmail] = useState<string | null>(null);
+  if (auth.status === 'loading') return <p>Checking session…</p>;
+  if (auth.status !== 'authed') return <AuthScreen />;
+  return (
+    <div>
+      <ProfileLine apiBase={apiBase} token={auth.accessToken} fallback={auth.email} onEmail={setProfileEmail} />
+      <button onClick={auth.signOut}>Sign out</button>
+      <ActionsPanel apiBase={apiBase} token={auth.accessToken} onSessionExpired={auth.sessionExpired} />
+      <Leaderboard apiBase={apiBase} token={auth.accessToken} onSessionExpired={auth.sessionExpired} />
+    </div>
+  );
+}
+
+function ProfileLine({ apiBase, token, fallback, onEmail }: { apiBase: string; token: string; fallback: string; onEmail: (e: string) => void }) {
+  const [email, setEmail] = useState(fallback);
+  useEffect(() => {
+    let cancelled = false;
+    getMe(apiBase, token)
+      .then((me) => {
+        if (!cancelled && me.email) {
+          setEmail(me.email);
+          onEmail(me.email);
+        }
+      })
+      .catch(() => {
+        // Fall back to the Cognito-known email; profile is best-effort.
+      });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [apiBase, token]);
+  return <p>Signed in as {email}</p>;
+}
+
+function Leaderboard({ apiBase, token, onSessionExpired }: { apiBase: string; token: string; onSessionExpired: () => void }) {
+  const [leaders, setLeaders] = useState<LeaderEntry[]>([]);
+  const [note, setNote] = useState('Loading leaderboard…');
+  useEffect(() => {
+    let cancelled = false;
+    getLeaderboard(apiBase, token, 10)
+      .then((b) => {
+        if (cancelled) return;
+        setLeaders(b.leaders);
+        setNote(
+          b.leaders.length === 0
+            ? 'No actions yet — be the first on the board!'
+            : `${b.participantCount} participant(s) this season.`,
+        );
+      })
+      .catch((err: unknown) => {
+        if (cancelled) return;
+        if (isSessionExpired(err)) {
+          onSessionExpired();
+          return;
+        }
+        setNote('Leaderboard unavailable right now.');
+      });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [apiBase, token]);
+  return (
+    <section>
+      <h2 className="text-xl font-bold">Leaderboard</h2>
+      <p>{note}</p>
+      <ol>
+        {leaders.map((l) => (
+          <li key={l.displayId}>
+            {l.displayId} — {l.totalPoints} pts ({l.actionCount} actions)
+          </li>
+        ))}
+      </ol>
+    </section>
+  );
+}
+
+function AuthScreen() {
+  const auth = useAuth();
+  const [tab, setTab] = useState<'in' | 'up'>('in');
+  const [mail, setMail] = useState('');
+  const [pw, setPw] = useState('');
+  const [code, setCode] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [info, setInfo] = useState('');
+
+  async function run(fn: () => Promise<void>, done?: string) {
+    setBusy(true);
+    setInfo('');
+    try {
+      await fn();
+      if (done) setInfo(done);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (msg !== 'unconfirmed' && msg !== 'UNCONFIRMED') setInfo(msg);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (auth.status === 'unconfirmed') {
+    return (
+      <section>
+        <h2 className="text-xl font-bold">Confirm your email</h2>
+        <p>We sent a code to {auth.pendingEmail}. Enter it below.</p>
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            run(() => auth.confirm(code));
+          }}
+        >
+          <label>
+            Code
+            <input value={code} onChange={(e) => setCode(e.target.value)} />
+          </label>
+          <button type="submit" disabled={busy}>
+            {busy ? 'Working…' : 'Confirm'}
+          </button>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => run(() => auth.resend())}
+          >
+            Resend code
+          </button>
+        </form>
+        <p>{info !== '' ? info : auth.error}</p>
+      </section>
+    );
+  }
+
+  return (
+    <section>
+      <h2 className="text-xl font-bold">Sign in to log actions</h2>
+      <div>
+        <button type="button" onClick={() => { setTab('in'); auth.clearError(); }}>
+          Sign in
+        </button>
+        <button type="button" onClick={() => { setTab('up'); auth.clearError(); }}>
+          Sign up
+        </button>
+      </div>
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (!isValidEmail(mail)) {
+            setInfo('Enter a valid email address.');
+            return;
+          }
+          if (tab === 'in') run(() => auth.signIn(mail, pw));
+          else run(() => auth.signUp(mail, pw));
+        }}
+      >
+        <label>
+          Email
+          <input value={mail} onChange={(e) => setMail(e.target.value)} />
+        </label>
+        <label>
+          Password
+          <input
+            type="password"
+            value={pw}
+            onChange={(e) => setPw(e.target.value)}
+          />
+        </label>
+        <button type="submit" disabled={busy}>
+          {busy ? 'Working…' : tab === 'in' ? 'Sign in' : 'Create account'}
+        </button>
+      </form>
+      <p>{info !== '' ? info : auth.error}</p>
+    </section>
+  );
+}
+
+function ActionsPanel({ apiBase, token, onSessionExpired }: { apiBase: string; token: string; onSessionExpired: () => void }) {
   const [actionType, setActionType] = useState('recycle');
   const [note, setNote] = useState('');
   const [photo, setPhoto] = useState<File | null>(null);
@@ -82,23 +261,33 @@ function ActionsPanel({ apiBase }: { apiBase: string }) {
   const [totalPoints, setTotalPoints] = useState<number | null>(null);
   const [actions, setActions] = useState<ActionItem[]>([]);
 
-  async function refresh(uid: string) {
+  function expired(err: unknown): boolean {
+    if (isSessionExpired(err)) {
+      onSessionExpired();
+      return true;
+    }
+    return false;
+  }
+
+  async function refresh() {
     try {
       const [list, pts] = await Promise.all([
-        listActions(apiBase, uid),
-        getPoints(apiBase, uid),
+        listActions(apiBase, token),
+        getPoints(apiBase, token),
       ]);
       setActions(list.actions);
       setTotalPoints(pts.totalPoints);
-    } catch {
-      // List/points refresh is best-effort; submit reports its own errors.
+    } catch (err) {
+      if (!expired(err)) {
+        // List/points refresh is best-effort; submit reports its own errors.
+      }
     }
   }
 
   useEffect(() => {
-    refresh(userId.trim() === '' ? 'demo-user' : userId.trim());
+    refresh();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [apiBase]);
+  }, [apiBase, token]);
 
   function onFile(e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0] ?? null;
@@ -119,11 +308,11 @@ function ActionsPanel({ apiBase }: { apiBase: string }) {
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
-    const uid = userId.trim() === '' ? 'demo-user' : userId.trim();
     setBusy(true);
+    // One idempotency key for the whole attempt: safe to retry after any failure.
+    const clientActionId = newClientActionId();
+    let uploadedKey: string | undefined;
     try {
-      // One idempotency key for the whole attempt: safe to retry after any failure.
-      const clientActionId = newClientActionId();
       let photoKey: string | undefined;
       let photoName: string | undefined;
       let photoSize: number | undefined;
@@ -132,22 +321,22 @@ function ActionsPanel({ apiBase }: { apiBase: string }) {
         setStatus('Requesting photo upload…');
         const ticket = await requestUploadUrl(
           apiBase,
-          { userId: uid, clientActionId, photoType: photo.type, photoSize: photo.size },
+          { clientActionId, photoType: photo.type, photoSize: photo.size },
+          token,
         );
         setStatus('Uploading photo…');
         await putPhotoBytes(ticket.uploadUrl, photo, photo.type);
+        uploadedKey = ticket.photoKey;
         photoKey = ticket.photoKey;
         photoName = photo.name;
         photoSize = photo.size;
         photoType = photo.type;
       }
-      setStatus(photo ? 'Saving action…' : 'Saving action…');
-      // NOTE: if this call fails after a successful PUT, the uploaded object
-      // stays in private storage without an action record (orphaned). It is
-      // invisible to the app and retried submits reuse a fresh key; lifecycle
-      // cleanup is a P2 task (see PROJECT_STATUS.md).
+      setStatus('Saving action…');
+      // userId is a display value only — the backend derives ownership from
+      // the verified access token and ignores it.
       const r = await submitAction(apiBase, {
-        userId: uid,
+        userId: 'token-owner',
         clientActionId,
         actionType: actionType as 'recycle',
         note: note === '' ? undefined : note,
@@ -155,13 +344,19 @@ function ActionsPanel({ apiBase }: { apiBase: string }) {
         photoSize,
         photoType,
         photoKey,
-      });
+      }, token);
+      uploadedKey = undefined; // recorded — no longer an orphan.
       setStatus(`Recorded! +${r.pointsAwarded} pts for this submitted action.`);
       setNote('');
       setPhoto(null);
-      await refresh(uid);
+      await refresh();
     } catch (err) {
-      setStatus(err instanceof Error ? err.message : String(err));
+      if (uploadedKey) {
+        // The bytes landed but the record did not: remove our own orphan.
+        // Best-effort — the submit error below is what the user must see.
+        await deleteUpload(apiBase, uploadedKey, token);
+      }
+      if (!expired(err)) setStatus(err instanceof Error ? err.message : String(err));
     } finally {
       setBusy(false);
     }
@@ -173,10 +368,6 @@ function ActionsPanel({ apiBase }: { apiBase: string }) {
       <p>Points are awarded for each submitted action (recycle 10, transit 15, energy 20, cleanup 25, plant 30). Photos are stored privately; they are attached as evidence, not verification.</p>
       <p>Total points: {totalPoints === null ? '—' : totalPoints}</p>
       <form onSubmit={onSubmit}>
-        <label>
-          User ID
-          <input value={userId} onChange={(e) => setUserId(e.target.value)} />
-        </label>
         <label>
           Action
           <select value={actionType} onChange={(e) => setActionType(e.target.value)}>

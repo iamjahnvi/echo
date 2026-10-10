@@ -12,6 +12,59 @@ Globals:
         TABLE_NAME: sustain-the-globe-dev
 
 Resources:
+  ApiGatewayApi:
+    Type: AWS::Serverless::Api
+    Properties:
+      StageName: Prod
+      # Browser SPA calls the API cross-origin: allow the auth + JSON headers.
+      # No cookies/credentials mode is used; tokens travel in Authorization.
+      Cors:
+        AllowMethods: "'GET,POST,DELETE,OPTIONS'"
+        AllowHeaders: "'Content-Type,Authorization'"
+        AllowOrigin: "'*'"
+      Auth:
+        Authorizers:
+          CognitoAuth:
+            UserPoolArn: !GetAtt UserPool.Arn
+
+  UserPool:
+    Type: AWS::Cognito::UserPool
+    Properties:
+      UserPoolName: sustain-the-globe-users
+      UsernameAttributes:
+        - email
+      AutoVerifiedAttributes:
+        - email
+      Policies:
+        PasswordPolicy:
+          MinimumLength: 8
+          RequireUppercase: true
+          RequireLowercase: true
+          RequireNumbers: true
+          RequireSymbols: false
+          TemporaryPasswordValidityDays: 7
+      AdminCreateUserConfig:
+        AllowAdminCreateUserOnly: false
+      Schema:
+        - Name: email
+          Required: true
+          Mutable: true
+
+  UserPoolClient:
+    Type: AWS::Cognito::UserPoolClient
+    Properties:
+      ClientName: sustain-the-globe-web
+      UserPoolId: !Ref UserPool
+      # Browser SPA: public client, NO secret.
+      GenerateSecret: false
+      ExplicitAuthFlows:
+        - ALLOW_USER_PASSWORD_AUTH
+        - ALLOW_REFRESH_TOKEN_AUTH
+        - ALLOW_USER_SRP_AUTH
+      PreventUserExistenceErrors: ENABLED
+      SupportedIdentityProviders:
+        - COGNITO
+
   HealthFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -21,6 +74,7 @@ Resources:
         HealthApi:
           Type: Api
           Properties:
+            RestApiId: !Ref ApiGatewayApi
             Path: /health
             Method: get
 
@@ -55,8 +109,11 @@ Resources:
         CreateAction:
           Type: Api
           Properties:
+            RestApiId: !Ref ApiGatewayApi
             Path: /actions
             Method: post
+            Auth:
+              Authorizer: CognitoAuth
 
   ActionsListFunction:
     Type: AWS::Serverless::Function
@@ -73,8 +130,11 @@ Resources:
         ListActions:
           Type: Api
           Properties:
+            RestApiId: !Ref ApiGatewayApi
             Path: /actions
             Method: get
+            Auth:
+              Authorizer: CognitoAuth
 
   PointsFunction:
     Type: AWS::Serverless::Function
@@ -91,8 +151,11 @@ Resources:
         GetPoints:
           Type: Api
           Properties:
+            RestApiId: !Ref ApiGatewayApi
             Path: /points
             Method: get
+            Auth:
+              Authorizer: CognitoAuth
 
   PhotosBucket:
     Type: AWS::S3::Bucket
@@ -121,9 +184,75 @@ Resources:
       Policies:
         - S3WritePolicy:
             BucketName: !Ref PhotosBucket
+        - Statement:
+            - Sid: DeleteOrphanPhotos
+              Effect: Allow
+              Action: s3:DeleteObject
+              Resource: !Sub '${PhotosBucket.Arn}/uploads/*'
       Events:
         CreateUpload:
           Type: Api
           Properties:
+            RestApiId: !Ref ApiGatewayApi
             Path: /uploads
             Method: post
+            Auth:
+              Authorizer: CognitoAuth
+        DeleteUpload:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ApiGatewayApi
+            Path: /uploads
+            Method: delete
+            Auth:
+              Authorizer: CognitoAuth
+
+  MeFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ./
+      Handler: dist/handlers/me.handler
+      Events:
+        GetMe:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ApiGatewayApi
+            Path: /me
+            Method: get
+            Auth:
+              Authorizer: CognitoAuth
+
+  LeaderboardFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ./
+      Handler: dist/handlers/leaderboard.handler
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref DataTable
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref DataTable
+      Events:
+        GetLeaderboard:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ApiGatewayApi
+            Path: /leaderboard
+            Method: get
+            Auth:
+              Authorizer: CognitoAuth
+
+Outputs:
+  ApiUrl:
+    Description: Base URL of the API Gateway stage
+    Value: !Sub 'https://${ApiGatewayApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/'
+  UserPoolId:
+    Description: Cognito User Pool ID for web configuration (VITE_COGNITO_USER_POOL_ID)
+    Value: !Ref UserPool
+  UserPoolClientId:
+    Description: Public SPA client ID for web configuration (VITE_COGNITO_CLIENT_ID, no secret)
+    Value: !Ref UserPoolClient
+  Region:
+    Description: Deployment region for web configuration (VITE_COGNITO_REGION)
+    Value: !Ref AWS::Region

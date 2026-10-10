@@ -1,19 +1,27 @@
 import type { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 import { QueryCommand } from '@aws-sdk/lib-dynamodb';
 import { docClient, TABLE_NAME as DEFAULT_TABLE } from '../lib/dynamo.js';
+import {
+  getAuthIdentity,
+  unauthorizedBody,
+  type AuthIdentity,
+} from '../lib/auth.js';
 import type { StoreDeps } from './actions.js';
 
 function deps(): StoreDeps {
   return { doc: docClient, table: process.env.TABLE_NAME ?? DEFAULT_TABLE };
 }
 
-/** GET /points?userId= core: total = server-side sum of recorded action points. */
+/**
+ * GET /points core: total = server-side sum of the CALLER's recorded action
+ * points. Any query-string userId is ignored — no cross-user reads.
+ */
 export async function getPointsCore(
-  userId: unknown,
+  auth: AuthIdentity | null,
   d: StoreDeps = deps(),
 ): Promise<{ statusCode: number; body: Record<string, unknown> }> {
-  if (typeof userId !== 'string' || userId.trim() === '')
-    return { statusCode: 400, body: { message: 'userId query parameter is required.' } };
+  if (auth === null) return { statusCode: 401, body: unauthorizedBody() };
+  const userId = auth.userId;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const out = (await d.doc.send(
     new QueryCommand({
@@ -21,7 +29,7 @@ export async function getPointsCore(
       KeyConditionExpression: 'pk = :pk',
       FilterExpression: 'begins_with(sk, :prefix)',
       ExpressionAttributeValues: {
-        ':pk': `USER#${userId.trim()}`,
+        ':pk': `USER#${userId}`,
         ':prefix': 'ACTION#',
       },
       Limit: 200,
@@ -35,14 +43,14 @@ export async function getPointsCore(
   );
   return {
     statusCode: 200,
-    body: { userId: userId.trim(), totalPoints, actionCount: items.length },
+    body: { userId, totalPoints, actionCount: items.length },
   };
 }
 
 export const handler = async (
   event: APIGatewayProxyEvent,
 ): Promise<APIGatewayProxyResult> => {
-  const r = await getPointsCore(event.queryStringParameters?.userId);
+  const r = await getPointsCore(getAuthIdentity(event));
   return {
     statusCode: r.statusCode,
     headers: { 'Content-Type': 'application/json' },

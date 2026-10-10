@@ -58,7 +58,8 @@ test('photo key is deterministic, user-bound, and extension-mapped', () => {
 test('createUploadCore signs one short-lived URL without credentials in output', async () => {
   let signed: { b: string; k: string; ct: string } | null = null;
   const r = await createUploadCore(
-    { userId: 'u1', clientActionId: 'a1', photoType: 'image/png', photoSize: 500 },
+    { userId: 'ignored-spoof', clientActionId: 'a1', photoType: 'image/png', photoSize: 500 },
+    { userId: 'sub-123' },
     {
       bucket: 'photos-bucket',
       sign: async (b, k, ct) => {
@@ -68,28 +69,32 @@ test('createUploadCore signs one short-lived URL without credentials in output',
     },
   );
   assert.equal(r.statusCode, 200);
-  assert.equal(r.body.photoKey, 'uploads/u1/a1.png');
+  assert.equal(r.body.photoKey, 'uploads/sub-123/a1.png');
   assert.equal(r.body.uploadUrl, 'https://signed.example/put');
   assert.equal(r.body.expiresIn, 300);
-  assert.deepEqual(signed, { b: 'photos-bucket', k: 'uploads/u1/a1.png', ct: 'image/png' });
+  assert.deepEqual(signed, { b: 'photos-bucket', k: 'uploads/sub-123/a1.png', ct: 'image/png' });
   assert.ok(!JSON.stringify(r.body).includes('SECRET'));
 });
 
 test('createUploadCore returns 400 for invalid input, 500 when bucket/signing broken', async () => {
+  const auth = { userId: 'sub-123' };
   const bad = await createUploadCore(
     { userId: 'u1', photoType: 'image/gif', photoSize: 10 },
+    auth,
     { bucket: 'b', sign: async () => 'x' },
   );
   assert.equal(bad.statusCode, 400);
 
   const noBucket = await createUploadCore(
     { userId: 'u1', clientActionId: 'a1', photoType: 'image/png', photoSize: 10 },
+    auth,
     { bucket: '', sign: async () => 'x' },
   );
   assert.equal(noBucket.statusCode, 500);
 
   const signFail = await createUploadCore(
     { userId: 'u1', clientActionId: 'a1', photoType: 'image/png', photoSize: 10 },
+    auth,
     {
       bucket: 'b',
       sign: async () => {
@@ -100,6 +105,15 @@ test('createUploadCore returns 400 for invalid input, 500 when bucket/signing br
   assert.equal(signFail.statusCode, 500);
 });
 
+test('createUploadCore returns 401 without authentication', async () => {
+  const r = await createUploadCore(
+    { userId: 'u1', clientActionId: 'a1', photoType: 'image/png', photoSize: 10 },
+    null,
+    { bucket: 'b', sign: async () => 'x' },
+  );
+  assert.equal(r.statusCode, 401);
+});
+
 test('action rejects a photoKey issued to another user', async () => {
   let called = false;
   const d = stubDoc(async () => {
@@ -108,11 +122,12 @@ test('action rejects a photoKey issued to another user', async () => {
   });
   const r = await createActionCore(
     {
-      userId: 'u1',
+      userId: 'ignored',
       clientActionId: 'a1',
       actionType: 'recycle',
       photoKey: 'uploads/other-user/a9.jpg',
     },
+    { userId: 'sub-123' },
     d,
   );
   assert.equal(r.statusCode, 400);
@@ -129,16 +144,17 @@ test('action accepts own photoKey and stores it on the record', async () => {
   });
   const r = await createActionCore(
     {
-      userId: 'u1',
+      userId: 'ignored-spoof',
       clientActionId: 'a1',
       actionType: 'recycle',
       photoName: 'bin.jpg',
       photoSize: 100,
       photoType: 'image/jpeg',
-      photoKey: 'uploads/u1/a1.jpg',
+      photoKey: 'uploads/sub-123/a1.jpg',
     },
+    { userId: 'sub-123' },
     d,
   );
   assert.equal(r.statusCode, 201);
-  assert.equal(seen.Item.photoKey, 'uploads/u1/a1.jpg');
+  assert.equal(seen.Item.photoKey, 'uploads/sub-123/a1.jpg');
 });

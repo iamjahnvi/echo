@@ -61,6 +61,8 @@ function stubDoc(impl: (cmd: unknown) => Promise<unknown>) {
   return { doc: { send: impl }, table: 't' };
 }
 
+const AUTH = { userId: 'sub-123', email: 'a@example.com' };
+
 test('createActionCore returns 201 with server-computed points + conditional write', async () => {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let seen: any = null;
@@ -71,13 +73,14 @@ test('createActionCore returns 201 with server-computed points + conditional wri
   });
   const r = await createActionCore(
     { userId: 'u1', clientActionId: 'a1', actionType: 'plant' },
+    AUTH,
     d,
   );
   assert.equal(r.statusCode, 201);
   assert.equal(r.body.pointsAwarded, 30);
   assert.equal(seen.ConditionExpression, 'attribute_not_exists(pk) AND attribute_not_exists(sk)');
   assert.equal(seen.Item.points, 30);
-  assert.equal(seen.Item.pk, 'USER#u1');
+  assert.equal(seen.Item.pk, 'USER#sub-123');
 });
 
 test('createActionCore returns 409 on duplicate idempotency key (no double award)', async () => {
@@ -88,6 +91,7 @@ test('createActionCore returns 409 on duplicate idempotency key (no double award
   });
   const r = await createActionCore(
     { userId: 'u1', clientActionId: 'a1', actionType: 'plant' },
+    AUTH,
     d,
   );
   assert.equal(r.statusCode, 409);
@@ -99,7 +103,7 @@ test('createActionCore returns 400 for invalid input without touching the store'
     called = true;
     return {};
   });
-  const r = await createActionCore({ userId: 'u1', actionType: 'bogus' }, d);
+  const r = await createActionCore({ userId: 'u1', actionType: 'bogus' }, AUTH, d);
   assert.equal(r.statusCode, 400);
   assert.equal(called, false);
 });
@@ -110,12 +114,14 @@ test('listActionsCore returns newest-first actions; getPointsCore sums server-si
     { clientActionId: 'new', actionType: 'cleanup', points: 25, createdAt: '2026-02-01T00:00:00.000Z' },
   ];
   const d = stubDoc(async () => ({ Items: items }));
-  const list = await listActionsCore('u1', d);
+  const list = await listActionsCore(AUTH, undefined, d);
   assert.equal(list.statusCode, 200);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const acts = (list.body as any).actions;
   assert.equal(acts[0].actionId, 'new');
-  const pts = await getPointsCore('u1', d);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  assert.equal((list.body as any).userId, 'sub-123');
+  const pts = await getPointsCore(AUTH, d);
   assert.equal(pts.statusCode, 200);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   assert.equal((pts.body as any).totalPoints, 35);
@@ -123,8 +129,44 @@ test('listActionsCore returns newest-first actions; getPointsCore sums server-si
   assert.equal((pts.body as any).actionCount, 2);
 });
 
-test('list/getPoints require userId', async () => {
+test('list/getPoints return 401 without authentication', async () => {
   const d = stubDoc(async () => ({ Items: [] }));
-  assert.equal((await listActionsCore('', d)).statusCode, 400);
-  assert.equal((await getPointsCore(undefined, d)).statusCode, 400);
+  assert.equal((await listActionsCore(null, undefined, d)).statusCode, 401);
+  assert.equal((await getPointsCore(null, d)).statusCode, 401);
+  assert.equal(
+    (await createActionCore({ actionType: 'recycle' }, null, d)).statusCode,
+    401,
+  );
+});
+
+test('spoofed body userId is ignored — record owner is the token identity', async () => {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let seen: any = null;
+  const d = stubDoc(async (cmd: unknown) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    seen = (cmd as any).input;
+    return {};
+  });
+  const r = await createActionCore(
+    { userId: 'victim', clientActionId: 'a9', actionType: 'recycle' },
+    AUTH,
+    d,
+  );
+  assert.equal(r.statusCode, 201);
+  assert.equal(seen.Item.pk, 'USER#sub-123');
+  assert.equal(seen.Item.userId, 'sub-123');
+});
+
+test('list queries only the caller partition even if a spoofed query is attempted', async () => {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let seen: any = null;
+  const d = stubDoc(async (cmd: unknown) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    seen = (cmd as any).input;
+    return { Items: [] };
+  });
+  // No query param reaches the core anymore — identity is the only input.
+  const r = await listActionsCore(AUTH, undefined, d);
+  assert.equal(r.statusCode, 200);
+  assert.equal(seen.ExpressionAttributeValues[':pk'], 'USER#sub-123');
 });
