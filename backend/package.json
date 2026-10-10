@@ -9,6 +9,7 @@
   "scripts": {
     "build": "tsc",
     "test": "npm run build && node --test dist/tests/*.test.js",
+    "local": "sam local start-api --template-file template.yaml --port 3000 --env-vars local-env.json",
     "seed": "npm run build && node dist/seed.js",
     "seed:dry-run": "npm run build && node dist/seed.js --dry-run"
   },

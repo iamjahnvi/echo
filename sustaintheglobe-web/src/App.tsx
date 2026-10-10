@@ -1,16 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { BrowserRouter, Routes, Route, Link } from 'react-router-dom';
-import { create } from 'zustand';
-import moment from 'moment';
-import { fetchHealth, getApiBaseUrl, listActions, getPoints, getMe, getLeaderboard, deleteUpload, submitAction, requestUploadUrl, putPhotoBytes, validatePhotoFile, newClientActionId, isSessionExpired } from './api';
+import { fetchHealth, getApiBaseUrl, getDevelopmentApiBaseUrl, listActions, getPoints, getMe, getLeaderboard, deleteUpload, submitAction, requestUploadUrl, putPhotoBytes, validatePhotoFile, newClientActionId, isSessionExpired } from './api';
 import type { ActionItem, LeaderEntry } from './api';
 import { AuthProvider, useAuth, isValidEmail } from './auth';
-
-type Store = { count: number; inc: () => void };
-export const useStore = create<Store>((set) => ({
-  count: 0,
-  inc: () => set((s) => ({ count: s.count + 1 })),
-}));
 
 export function backendMode(): string {
   const v = (import.meta as never as { env: Record<string, string | undefined> }).env
@@ -20,15 +12,15 @@ export function backendMode(): string {
 }
 
 function Home() {
-  const { count, inc } = useStore();
   const mode = backendMode();
-  const apiBase =
+  const env =
     typeof import.meta !== 'undefined'
-      ? getApiBaseUrl(
-          (import.meta as never as { env: Record<string, string | undefined> })
-            .env,
-        )
-      : '';
+      ? (import.meta as never as { env: Record<string, string | undefined> & { DEV?: boolean } }).env
+      : {};
+  const configuredApiBase = getApiBaseUrl(env);
+  const apiBase = env.DEV
+    ? getDevelopmentApiBaseUrl(configuredApiBase, window.location.origin)
+    : configuredApiBase;
   const [health, setHealth] = useState<string>(
     mode === 'firebase'
       ? 'Firebase mode — backend API not used.'
@@ -60,9 +52,6 @@ function Home() {
       <h1 className="text-2xl font-bold">SustainTheGlobe</h1>
       <p>Backend mode: {mode}</p>
       <p>Backend status: {health}</p>
-      <p>Today: {moment().format('YYYY-MM-DD')}</p>
-      <p>Count: {count}</p>
-      <button onClick={inc}>Increment</button>
       {mode !== 'firebase' && apiBase !== '' ? (
         <AuthProvider>
           <AwsSection apiBase={apiBase} />

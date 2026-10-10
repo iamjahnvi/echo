@@ -11,6 +11,9 @@ export interface CognitoConfig {
   clientId: string;
 }
 
+const COGNITO_SETUP_MESSAGE =
+  'Cognito is not configured. Set VITE_COGNITO_USER_POOL_ID and VITE_COGNITO_CLIENT_ID to real public IDs from your deployed SAM stack. Local SAM does not provide Cognito authentication.';
+
 /** Public identifiers only — never secrets. Null when not configured. */
 export function getCognitoConfig(
   env: Record<string, string | undefined>,
@@ -106,7 +109,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [status, setStatus] = useState<AuthState['status']>('loading');
   const [email, setEmail] = useState('');
   const [accessToken, setAccessToken] = useState('');
-  const [error, setError] = useState('');
+  const [error, setError] = useState(config ? '' : COGNITO_SETUP_MESSAGE);
   const [pendingEmail, setPendingEmail] = useState('');
 
   const fail = (err: unknown, unconfirmedEmail?: string) => {
@@ -160,7 +163,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [pool]);
 
   const needPool = (): CognitoUserPool => {
-    if (!pool) throw new Error('Sign-in is not configured (Cognito IDs missing).');
+    if (!pool) throw new Error(COGNITO_SETUP_MESSAGE);
     return pool;
   };
 

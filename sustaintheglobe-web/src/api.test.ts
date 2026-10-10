@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import {
   getApiBaseUrl,
+  getDevelopmentApiBaseUrl,
   buildHealthUrl,
   fetchHealth,
   submitAction,
@@ -42,6 +43,20 @@ describe('getApiBaseUrl', () => {
   });
 });
 
+describe('getDevelopmentApiBaseUrl', () => {
+  it('uses the SAM proxy when unset, invalid, or pointed at the Vite page', () => {
+    expect(getDevelopmentApiBaseUrl('', 'http://localhost:5173')).toBe('/api');
+    expect(getDevelopmentApiBaseUrl('PASTE_API_URL_HERE', 'http://localhost:5173')).toBe('/api');
+    expect(getDevelopmentApiBaseUrl('http://localhost:5173', 'http://localhost:5173')).toBe('/api');
+  });
+
+  it('keeps a configured external API URL for development', () => {
+    expect(getDevelopmentApiBaseUrl('https://api.example.com/Prod/', 'http://localhost:5173')).toBe(
+      'https://api.example.com/Prod',
+    );
+  });
+});
+
 describe('buildHealthUrl', () => {
   it('appends /health without doubling slashes', () => {
     expect(buildHealthUrl('https://api.example.com/Prod/')).toBe(
@@ -78,7 +93,27 @@ describe('fetchHealth', () => {
       async () => new Response('not-json{{{', { status: 200 }),
     );
     await expect(fetchHealth('http://127.0.0.1:3000', fetcher)).rejects.toThrow(
-      'invalid JSON',
+      'HTTP 200 returned non-JSON',
+    );
+  });
+
+  it('diagnoses a Vite HTML fallback instead of calling it invalid JSON', async () => {
+    const fetcher = vi.fn(async () => new Response('<!doctype html><html></html>', {
+      status: 200,
+      headers: { 'Content-Type': 'text/html' },
+    }));
+    await expect(fetchHealth('/api', fetcher)).rejects.toThrow(
+      'HTTP 200 returned HTML. The local API proxy returned HTML',
+    );
+  });
+
+  it('includes HTTP status and identifies HTML on error responses', async () => {
+    const fetcher = vi.fn(async () => new Response('<html>not found</html>', {
+      status: 404,
+      headers: { 'Content-Type': 'text/html' },
+    }));
+    await expect(fetchHealth('http://localhost:5173', fetcher)).rejects.toThrow(
+      'HTTP 404. The server returned an HTML page',
     );
   });
 
@@ -94,7 +129,7 @@ describe('fetchHealth', () => {
       throw new TypeError('fetch failed');
     });
     await expect(fetchHealth('http://127.0.0.1:3000', fetcher)).rejects.toThrow(
-      'request failed',
+      'Could not reach the API',
     );
   });
 });

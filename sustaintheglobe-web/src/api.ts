@@ -8,6 +8,21 @@ export function getApiBaseUrl(env: Record<string, string | undefined>): string {
   return raw.trim().replace(/\/+$/, '');
 }
 
+/** Use the local SAM API when development config is missing or points back at Vite. */
+export function getDevelopmentApiBaseUrl(
+  configuredBaseUrl: string,
+  pageOrigin: string,
+): string {
+  const base = configuredBaseUrl.trim().replace(/\/+$/, '');
+  if (base === '') return '/api';
+  try {
+    if (new URL(base, pageOrigin).origin === pageOrigin) return '/api';
+  } catch {
+    return '/api';
+  }
+  return base;
+}
+
 export function buildHealthUrl(baseUrl: string): string {
   return `${baseUrl.replace(/\/+$/, '')}/health`;
 }
@@ -300,19 +315,45 @@ export async function fetchHealth(
   }
   let res: Response;
   try {
-    res = await fetcher(`${base}/health`);
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    throw new Error(`Health check request failed: ${msg}`);
+    res = await fetcher(buildHealthUrl(base));
+  } catch {
+    throw new Error(
+      base.startsWith('/api')
+        ? 'Could not reach the local API. Start the SAM backend on port 3000.'
+        : 'Could not reach the API. Check the API URL and confirm the server is running.',
+    );
   }
+  const contentType = res.headers.get('content-type')?.split(';')[0].trim().toLowerCase();
+  let raw: string;
+  try {
+    raw = await res.text();
+  } catch {
+    throw new Error(`Health check failed: HTTP ${res.status}; response could not be read.`);
+  }
+  const looksLikeHtml =
+    contentType === 'text/html' || /^\s*(?:<!doctype\s+html|<html\b)/i.test(raw);
   if (!res.ok) {
-    throw new Error(`Health check failed: HTTP ${res.status}`);
+    const diagnostic = !looksLikeHtml
+      ? ''
+      : base.startsWith('/api')
+        ? ' The local API proxy returned HTML; confirm SAM is running on port 3000.'
+        : ' The server returned an HTML page; check that the API URL points to the backend.';
+    throw new Error(`Health check failed: HTTP ${res.status}.${diagnostic}`);
+  }
+  if (looksLikeHtml) {
+    const diagnostic = base.startsWith('/api')
+      ? ' The local API proxy returned HTML; confirm SAM is running on port 3000.'
+      : ' The URL is serving a web page instead of the backend API.';
+    throw new Error(`Health check failed: HTTP ${res.status} returned HTML.${diagnostic}`);
   }
   let body: unknown;
   try {
-    body = await res.json();
+    body = JSON.parse(raw);
   } catch {
-    throw new Error('Health check returned invalid JSON.');
+    const type = contentType ?? 'unknown content type';
+    throw new Error(
+      `Health check failed: HTTP ${res.status} returned non-JSON (${type}). Check that the URL points to the backend API.`,
+    );
   }
   if (
     typeof body !== 'object' ||
