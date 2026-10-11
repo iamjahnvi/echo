@@ -1,3 +1,191 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+:root {
+  --forest: #244337;
+  --deep-forest: #1b3028;
+  --darkest: #16261f;
+  --ivory: #f5f3ea;
+  --cream: #efece1;
+  --mist: #d5dfd1;
+  --sage: #a8b5a0;
+  --sand: #e4e2d8;
+  --ink: #1b201b;
+  --moss: #4c574f;
+  --clay-deep: #b67b4b;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  background-color: var(--ivory);
+  color: var(--ink);
+  font-family: Inter, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+.font-editorial {
+  font-family: Fraunces, Georgia, 'Times New Roman', serif;
+  letter-spacing: -0.01em;
+}
+
+/* Consistent, visible focus for keyboard users */
+:where(a, button, input, select, textarea):focus-visible {
+  outline: 3px solid #244337;
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+.auth-panel :where(a, button, input, select):focus-visible {
+  outline-color: #dcbd97;
+}
+
+/* Shared field styling */
+.field-input {
+  width: 100%;
+  min-height: 3rem;
+  border-radius: 0.65rem;
+  border: 1px solid #e4e2d8;
+  background: #fff;
+  padding: 0.7rem 0.9rem;
+  font-size: 1rem;
+  color: #1b201b;
+  transition: border-color 150ms ease, box-shadow 150ms ease;
+}
+
+.field-input::placeholder {
+  color: #8a9187;
+}
+
+.field-input:hover {
+  border-color: #a8b5a0;
+}
+
+.field-input:focus {
+  outline: none;
+  border-color: #244337;
+  box-shadow: 0 0 0 3px rgba(36, 67, 55, 0.16);
+}
+
+.field-input[aria-invalid='true'] {
+  border-color: #b3261e;
+  box-shadow: 0 0 0 3px rgba(179, 38, 30, 0.12);
+}
+
+.field-label {
+  display: block;
+  font-size: 0.85rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: #1b201b;
+  margin-bottom: 0.4rem;
+}
+
+.field-hint {
+  font-size: 0.82rem;
+  color: #4c574f;
+}
+
+.btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  min-height: 3rem;
+  padding: 0.7rem 1.4rem;
+  border-radius: 0.65rem;
+  background: #244337;
+  color: #f5f3ea;
+  font-weight: 650;
+  font-size: 1rem;
+  border: 1px solid #244337;
+  cursor: pointer;
+  transition: background 150ms ease, transform 150ms ease;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: #1b3028;
+}
+
+.btn-primary:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 3rem;
+  padding: 0.7rem 1.2rem;
+  border-radius: 0.65rem;
+  background: transparent;
+  color: #244337;
+  font-weight: 600;
+  border: 1px solid #244337;
+  cursor: pointer;
+  transition: background 150ms ease;
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background: rgba(36, 67, 55, 0.08);
+}
+
+.btn-secondary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Status pills — muted clay / restrained green / clear red */
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  border-radius: 999px;
+  padding: 0.2rem 0.65rem;
+  border: 1px solid transparent;
+  white-space: nowrap;
+}
+
+.pill-pending {
+  background: #f4e8db;
+  color: #7a4a1f;
+  border-color: #dcbd97;
+}
+
+.pill-approved {
+  background: #e3ecdf;
+  color: #244337;
+  border-color: #a8b5a0;
+}
+
+.pill-rejected {
+  background: #fbe9e7;
+  color: #8f1d14;
+  border-color: #e5a9a3;
+}
+
+.card {
+  background: #fff;
+  border: 1px solid #e4e2d8;
+  border-radius: 1rem;
+}
+
+.leaf-ring {
+  border: 1px solid rgba(245, 243, 234, 0.25);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation: none !important;
+    transition: none !important;
+  }
+}
