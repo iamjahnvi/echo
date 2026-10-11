@@ -229,9 +229,16 @@ function AuthScreen({ health }: { health: string }) {
   const isConfirm = auth.status === 'unconfirmed';
 
   return (
-    <div className="auth-panel min-h-screen bg-ivory lg:grid lg:grid-cols-[1.05fr_1fr]">
-      {/* Editorial forest panel */}
-      <aside className="relative overflow-hidden bg-deepforest text-ivory">
+    <div className="auth-panel flex h-dvh flex-col overflow-hidden bg-ivory lg:grid lg:grid-cols-[1.05fr_1fr]">
+      {/* Slim brand bar — mobile only, keeps the form visible without scrolling */}
+      <div className="flex shrink-0 items-center justify-between bg-deepforest px-5 py-3 lg:hidden">
+        <BrandMark onDark />
+        <Link className="text-xs font-semibold text-mist underline-offset-4 hover:underline" to="/about">
+          About
+        </Link>
+      </div>
+      {/* Editorial forest panel — desktop only so everything fits one screen */}
+      <aside className="relative hidden overflow-hidden bg-deepforest text-ivory lg:block">
         <div className="absolute inset-0 bg-darkest" aria-hidden="true" />
         <svg
           className="absolute -right-24 -top-24 h-[420px] w-[420px] opacity-20"
@@ -250,61 +257,59 @@ function AuthScreen({ health }: { health: string }) {
           <path d="M100 10 C 60 70, 60 130, 100 190 M100 10 C 140 70, 140 130, 100 190" fill="none" stroke="#a8b5a0" strokeWidth="1.2" />
           <path d="M100 60 C 80 70, 70 90, 68 110 M100 60 C 120 70, 130 90, 132 110" fill="none" stroke="#e9d5bd" strokeWidth="1.2" />
         </svg>
-        <div className="relative flex h-full flex-col px-7 py-8 sm:px-12 lg:px-14 lg:py-12">
+        <div className="relative flex h-full min-h-0 flex-col justify-center px-14 py-8">
           <BrandMark onDark />
-          <div className="mt-10 max-w-md lg:mt-16">
+          <div className="mt-8 max-w-md">
             <p className="text-xs font-bold uppercase tracking-[0.2em] text-claysand">
               Every action counts
             </p>
-            <h1 className="font-editorial mt-4 text-4xl leading-[1.08] sm:text-5xl">
+            <h1 className="font-editorial mt-3 text-[2.6rem] leading-[1.06]">
               Small everyday actions, grown into a greener globe.
             </h1>
-            <p className="mt-5 max-w-md text-[17px] leading-relaxed text-ivory/85">
+            <p className="mt-4 max-w-md text-[15px] leading-relaxed text-ivory/85">
               Log recycling, cleanups, plantings, low-carbon transit and energy savings.
               Verified actions earn points and move you up the seasonal leaderboard.
             </p>
-            <dl className="mt-8 grid max-w-md grid-cols-3 gap-3">
+            <dl className="mt-6 grid max-w-md grid-cols-3 gap-2.5">
               {[
                 { k: '5', v: 'Action types' },
                 { k: '10–30', v: 'Points each' },
                 { k: 'Top 20', v: 'Leaderboard' },
               ].map((s) => (
-                <div key={s.v} className="leaf-ring rounded-xl px-4 py-3">
-                  <dt className="font-editorial text-2xl">{s.k}</dt>
-                  <dd className="mt-0.5 text-xs font-semibold uppercase tracking-wider text-mist">{s.v}</dd>
+                <div key={s.v} className="leaf-ring rounded-xl px-3.5 py-2.5">
+                  <dt className="font-editorial text-xl">{s.k}</dt>
+                  <dd className="mt-0.5 text-[11px] font-semibold uppercase tracking-wider text-mist">{s.v}</dd>
                 </div>
               ))}
             </dl>
-            <div className="mt-8 hidden max-w-md gap-2 lg:grid">
+            <div className="mt-5 flex max-w-md flex-wrap gap-1.5">
               {ACTION_OPTIONS.map((a) => (
-                <div key={a.value} className="flex items-center justify-between rounded-lg bg-ivory/[0.06] px-4 py-2.5 text-sm">
-                  <span className="font-semibold capitalize">{a.label}</span>
-                  <span className="text-claymid">{a.points} pts</span>
-                </div>
+                <span key={a.value} className="rounded-full border border-ivory/25 bg-ivory/[0.06] px-3 py-1 text-xs font-semibold capitalize">
+                  {a.label} · <span className="text-claymid">{a.points}</span>
+                </span>
               ))}
             </div>
           </div>
-          <p className="mt-auto hidden pt-10 text-xs text-ivory/60 lg:block">{health}</p>
+          <p className="mt-6 text-xs text-ivory/60">{health}</p>
         </div>
       </aside>
 
-      {/* Form panel */}
-      <main className="flex items-start justify-center px-5 py-10 sm:px-10 lg:items-center lg:py-12">
-        <div className="w-full max-w-md">
-          <div className="card p-7 sm:p-8">
+      {/* Form panel — fills the viewport height, centers the card, no page scroll */}
+      <main className="flex min-h-0 flex-1 items-center justify-center overflow-y-auto px-5 py-4 sm:px-8">
+        <div className="w-full max-w-md py-2">
+          <div className="card p-6">
             {isConfirm ? (
               <section aria-labelledby="confirm-heading">
                 <p className="text-xs font-bold uppercase tracking-[0.16em] text-claydeep">Almost there</p>
-                <h2 id="confirm-heading" className="font-editorial mt-2 text-3xl">
+                <h2 id="confirm-heading" className="font-editorial mt-1 text-[1.7rem] leading-tight">
                   Confirm your email
                 </h2>
-                <p className="mt-2 text-[15px] text-moss">
+                <p className="mt-1 text-sm text-moss">
                   We sent a verification code to{' '}
-                  <strong className="text-ink">{auth.pendingEmail}</strong>. Enter it below to
-                  finish creating your account.
+                  <strong className="text-ink">{auth.pendingEmail}</strong>. Enter it below.
                 </p>
                 <form
-                  className="mt-6 space-y-4"
+                  className="mt-4 space-y-3"
                   onSubmit={(e) => {
                     e.preventDefault();
                     if (code.trim() === '') {
@@ -349,15 +354,15 @@ function AuthScreen({ health }: { health: string }) {
               </section>
             ) : (
               <section aria-labelledby="auth-heading">
-                <h2 id="auth-heading" className="font-editorial text-3xl">
+                <h2 id="auth-heading" className="font-editorial text-[1.7rem] leading-tight">
                   {tab === 'in' ? 'Welcome back' : 'Join the movement'}
                 </h2>
-                <p className="mt-1.5 text-[15px] text-moss">
+                <p className="mt-0.5 text-sm text-moss">
                   {tab === 'in'
                     ? 'Sign in to log actions and track your impact.'
                     : 'Create an account to start earning verified points.'}
                 </p>
-                <div className="mt-5 grid grid-cols-2 gap-1 rounded-xl bg-cream p-1" role="tablist" aria-label="Sign in or sign up">
+                <div className="mt-3 grid grid-cols-2 gap-1 rounded-xl bg-cream p-1" role="tablist" aria-label="Sign in or sign up">
                   {(
                     [
                       { key: 'in', label: 'Sign in' },
@@ -385,7 +390,7 @@ function AuthScreen({ health }: { health: string }) {
                   ))}
                 </div>
                 <form
-                  className="mt-5 space-y-4"
+                  className="mt-3 space-y-3"
                   noValidate
                   onSubmit={(e) => {
                     e.preventDefault();
@@ -439,7 +444,7 @@ function AuthScreen({ health }: { health: string }) {
                         required
                         aria-invalid={fieldError === 'address' ? true : undefined}
                       />
-                      <p className="field-hint mt-1.5">Required for registration.</p>
+                      <p className="field-hint mt-1">Required for registration.</p>
                     </div>
                   ) : null}
                   <div>
@@ -457,7 +462,7 @@ function AuthScreen({ health }: { health: string }) {
                       aria-invalid={fieldError === 'password' ? true : undefined}
                     />
                     {tab === 'up' ? (
-                      <p className="field-hint mt-1.5">8+ characters with upper/lowercase and a number.</p>
+                      <p className="field-hint mt-1">8+ characters with upper/lowercase and a number.</p>
                     ) : null}
                   </div>
                   <button type="submit" className="btn-primary w-full" disabled={busy}>
@@ -465,18 +470,17 @@ function AuthScreen({ health }: { health: string }) {
                   </button>
                 </form>
                 {message !== '' ? (
-                  <p role="alert" className="mt-4 rounded-lg bg-cream px-4 py-3 text-sm font-medium">
+                  <p role="alert" className="mt-3 rounded-lg bg-cream px-3.5 py-2.5 text-sm font-medium">
                     {message}
                   </p>
                 ) : null}
-                <p className="mt-5 text-xs leading-relaxed text-moss">
-                  Protected by Amazon Cognito. Your session is kept in this browser only — we
-                  never expose tokens or private photo URLs.
+                <p className="mt-3 text-xs leading-relaxed text-moss">
+                  Protected by Amazon Cognito — tokens and private photos never leave safe handling.
                 </p>
               </section>
             )}
           </div>
-          <div className="mt-4 flex items-center justify-between text-sm">
+          <div className="mt-2.5 hidden items-center justify-between text-sm lg:flex">
             <Link className="font-semibold text-forest underline-offset-4 hover:underline" to="/about">
               About SustainTheGlobe
             </Link>
