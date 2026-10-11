@@ -11,6 +11,20 @@ Globals:
       Variables:
         TABLE_NAME: sustain-the-globe-dev
 
+Parameters:
+  ExistingUserPoolId:
+    Type: String
+    Default: ap-southeast-2_qYbDPKblw
+    Description: ID of the existing Cognito User Pool
+  ExistingUserPoolArn:
+    Type: String
+    Default: arn:aws:cognito-idp:ap-southeast-2:942511916226:userpool/ap-southeast-2_qYbDPKblw
+    Description: ARN of the existing Cognito User Pool
+  ExistingUserPoolClientId:
+    Type: String
+    Default: 6k68fr8g1l6dntcj9oaorvb9q1
+    Description: Public app client ID for the existing Cognito User Pool
+
 Resources:
   ApiGatewayApi:
     Type: AWS::Serverless::Api
@@ -25,45 +39,7 @@ Resources:
       Auth:
         Authorizers:
           CognitoAuth:
-            UserPoolArn: !GetAtt UserPool.Arn
-
-  UserPool:
-    Type: AWS::Cognito::UserPool
-    Properties:
-      UserPoolName: sustain-the-globe-users
-      UsernameAttributes:
-        - email
-      AutoVerifiedAttributes:
-        - email
-      Policies:
-        PasswordPolicy:
-          MinimumLength: 8
-          RequireUppercase: true
-          RequireLowercase: true
-          RequireNumbers: true
-          RequireSymbols: false
-          TemporaryPasswordValidityDays: 7
-      AdminCreateUserConfig:
-        AllowAdminCreateUserOnly: false
-      Schema:
-        - Name: email
-          Required: true
-          Mutable: true
-
-  UserPoolClient:
-    Type: AWS::Cognito::UserPoolClient
-    Properties:
-      ClientName: sustain-the-globe-web
-      UserPoolId: !Ref UserPool
-      # Browser SPA: public client, NO secret.
-      GenerateSecret: false
-      ExplicitAuthFlows:
-        - ALLOW_USER_PASSWORD_AUTH
-        - ALLOW_REFRESH_TOKEN_AUTH
-        - ALLOW_USER_SRP_AUTH
-      PreventUserExistenceErrors: ENABLED
-      SupportedIdentityProviders:
-        - COGNITO
+            UserPoolArn: !Ref ExistingUserPoolArn
 
   HealthFunction:
     Type: AWS::Serverless::Function
@@ -249,10 +225,10 @@ Outputs:
     Value: !Sub 'https://${ApiGatewayApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/'
   UserPoolId:
     Description: Cognito User Pool ID for web configuration (VITE_COGNITO_USER_POOL_ID)
-    Value: !Ref UserPool
+    Value: !Ref ExistingUserPoolId
   UserPoolClientId:
     Description: Public SPA client ID for web configuration (VITE_COGNITO_CLIENT_ID, no secret)
-    Value: !Ref UserPoolClient
+    Value: !Ref ExistingUserPoolClientId
   Region:
     Description: Deployment region for web configuration (VITE_COGNITO_REGION)
     Value: !Ref AWS::Region
