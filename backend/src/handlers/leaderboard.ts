@@ -50,16 +50,22 @@ export async function getLeaderboardCore(
     limit = n as number;
   }
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const out = (await d.doc.send(
-    new ScanCommand({
-      TableName: d.table,
-      FilterExpression: 'begins_with(sk, :prefix)',
-      ExpressionAttributeValues: { ':prefix': 'ACTION#' },
-      ProjectionExpression: 'pk, points',
-      Limit: SCAN_LIMIT,
-    }),
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  )) as { Items?: any[] };
+  let out: { Items?: any[] };
+  try {
+    out = (await d.doc.send(
+      new ScanCommand({
+        TableName: d.table,
+        FilterExpression: 'begins_with(sk, :prefix)',
+        ExpressionAttributeValues: { ':prefix': 'ACTION#' },
+        ProjectionExpression: 'pk, points',
+        Limit: SCAN_LIMIT,
+      }),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    )) as { Items?: any[] };
+  } catch (err) {
+    console.error('getLeaderboard store failure:', err);
+    return { statusCode: 500, body: { message: 'Could not load leaderboard.' } };
+  }
   const totals = new Map<string, { totalPoints: number; actionCount: number }>();
   for (const it of out.Items ?? []) {
     if (typeof it.pk !== 'string') continue;

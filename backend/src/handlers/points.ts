@@ -24,19 +24,27 @@ export async function getPointsCore(
   if (auth === null) return { statusCode: 401, body: unauthorizedBody() };
   const userId = auth.userId;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const out = (await d.doc.send(
-    new QueryCommand({
-      TableName: d.table,
-      KeyConditionExpression: 'pk = :pk',
-      FilterExpression: 'begins_with(sk, :prefix)',
-      ExpressionAttributeValues: {
-        ':pk': `USER#${userId}`,
-        ':prefix': 'ACTION#',
-      },
-      Limit: 200,
-    }),
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  )) as { Items?: any[] };
+  let out: { Items?: any[] };
+  try {
+    out = (await d.doc.send(
+      new QueryCommand({
+        TableName: d.table,
+        // sk is the RANGE key: sort-key conditions belong in the key
+        // condition (a FilterExpression on a primary key attribute is
+        // rejected with ValidationException → 500/502 at runtime).
+        KeyConditionExpression: 'pk = :pk AND begins_with(sk, :prefix)',
+        ExpressionAttributeValues: {
+          ':pk': `USER#${userId}`,
+          ':prefix': 'ACTION#',
+        },
+        Limit: 200,
+      }),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    )) as { Items?: any[] };
+  } catch (err) {
+    console.error('getPoints store failure:', err);
+    return { statusCode: 500, body: { message: 'Could not load points.' } };
+  }
   const items = out.Items ?? [];
   const totalPoints = items.reduce(
     (sum, it) => sum + (typeof it.points === 'number' ? it.points : 0),

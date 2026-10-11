@@ -107,7 +107,11 @@ export async function createActionCore(
         statusCode: 409,
         body: { message: 'Duplicate action (same clientActionId already recorded).' },
       };
-    throw err;
+    // Any other store failure (credentials, permissions, table config,
+    // throttling) must surface as a JSON 500 — never an unhandled throw,
+    // which API Gateway reports as a bare 502 with no useful body.
+    console.error('createAction store failure:', err);
+    return { statusCode: 500, body: { message: 'Could not record action.' } };
   }
   return {
     statusCode: 201,
@@ -183,20 +187,28 @@ export async function listActionsCore(
     startKey = c.key;
   }
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const out = (await d.doc.send(
-    new QueryCommand({
-      TableName: d.table,
-      KeyConditionExpression: 'pk = :pk',
-      FilterExpression: 'begins_with(sk, :prefix)',
-      ExpressionAttributeValues: {
-        ':pk': `USER#${userId}`,
-        ':prefix': 'ACTION#',
-      },
-      Limit: limit,
-      ...(startKey ? { ExclusiveStartKey: startKey } : {}),
-    }),
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  )) as { Items?: any[]; LastEvaluatedKey?: Record<string, unknown> };
+  let out: { Items?: any[]; LastEvaluatedKey?: Record<string, unknown> };
+  try {
+    out = (await d.doc.send(
+      new QueryCommand({
+        TableName: d.table,
+        // sk is the RANGE key: sort-key conditions belong in the key
+        // condition (a FilterExpression on a primary key attribute is
+        // rejected with ValidationException → 500/502 at runtime).
+        KeyConditionExpression: 'pk = :pk AND begins_with(sk, :prefix)',
+        ExpressionAttributeValues: {
+          ':pk': `USER#${userId}`,
+          ':prefix': 'ACTION#',
+        },
+        Limit: limit,
+        ...(startKey ? { ExclusiveStartKey: startKey } : {}),
+      }),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    )) as { Items?: any[]; LastEvaluatedKey?: Record<string, unknown> };
+  } catch (err) {
+    console.error('listActions store failure:', err);
+    return { statusCode: 500, body: { message: 'Could not list actions.' } };
+  }
   const actions = (out.Items ?? [])
     .map((it) => ({
       actionId: it.clientActionId,
