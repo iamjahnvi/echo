@@ -1093,21 +1093,6 @@ function Dashboard({ apiBase, health }: { apiBase: string; health: string }) {
           />
           <div className="space-y-6">
             <Leaderboard apiBase={apiBase} token={authed.idToken} onSessionExpired={auth.sessionExpired} refreshKey={refreshKey} />
-            <section aria-labelledby="verify-heading" className="rounded-2xl border border-forest bg-deepforest p-6 text-ivory">
-              <h2 id="verify-heading" className="font-editorial text-xl">
-                How verification works
-              </h2>
-              <ol className="mt-3 space-y-2.5 text-sm leading-relaxed text-ivory/85">
-                <li className="flex gap-2.5"><span className="font-bold text-claymid">1.</span> You submit an action — it is recorded as pending.</li>
-                <li className="flex gap-2.5"><span className="font-bold text-claymid">2.</span> A reviewer checks your note and private photo.</li>
-                <li className="flex gap-2.5"><span className="font-bold text-claymid">3.</span> Approved actions add points to your total and the leaderboard.</li>
-              </ol>
-              <div className="mt-4 flex flex-wrap gap-2">
-                <span className="pill pill-pending">Pending</span>
-                <span className="pill pill-approved">Approved</span>
-                <span className="pill pill-rejected">Rejected</span>
-              </div>
-            </section>
           </div>
         </div>
 
