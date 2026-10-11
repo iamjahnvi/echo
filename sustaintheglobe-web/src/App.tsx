@@ -71,10 +71,10 @@ function AwsSection({ apiBase }: { apiBase: string }) {
   if (auth.status !== 'authed') return <AuthScreen />;
   return (
     <div>
-      <ProfileLine apiBase={apiBase} token={auth.accessToken} fallback={auth.email} onEmail={setProfileEmail} />
+      <ProfileLine apiBase={apiBase} token={auth.idToken} fallback={auth.email} onEmail={setProfileEmail} />
       <button onClick={auth.signOut}>Sign out</button>
-      <ActionsPanel apiBase={apiBase} token={auth.accessToken} onSessionExpired={auth.sessionExpired} />
-      <Leaderboard apiBase={apiBase} token={auth.accessToken} onSessionExpired={auth.sessionExpired} />
+      <ActionsPanel apiBase={apiBase} token={auth.idToken} onSessionExpired={auth.sessionExpired} />
+      <Leaderboard apiBase={apiBase} token={auth.idToken} onSessionExpired={auth.sessionExpired} />
     </div>
   );
 }
@@ -122,7 +122,7 @@ function Leaderboard({ apiBase, token, onSessionExpired }: { apiBase: string; to
           onSessionExpired();
           return;
         }
-        setNote('Leaderboard unavailable right now.');
+        setNote(err instanceof Error ? `Leaderboard unavailable: ${err.message}` : 'Leaderboard unavailable.');
       });
     return () => {
       cancelled = true;

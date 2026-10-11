@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildSignUpAttributes, getCognitoConfig, isValidAddress, isValidEmail, mapAuthError } from './auth';
+import { buildSignUpAttributes, getApiIdToken, getCognitoConfig, isValidAddress, isValidEmail, mapAuthError } from './auth';
 
 describe('getCognitoConfig', () => {
   it('returns null when pool/client IDs are missing or placeholders', () => {
@@ -21,6 +21,15 @@ describe('getCognitoConfig', () => {
       VITE_COGNITO_CLIENT_ID: 'client123',
     });
     expect(c).toEqual({ userPoolId: 'us-east-1_abc123', clientId: 'client123' });
+  });
+});
+
+describe('API token selection', () => {
+  it('uses the Cognito ID token for the REST API user pool authorizer', () => {
+    const token = getApiIdToken({
+      getIdToken: () => ({ getJwtToken: () => 'verified-id-token' }),
+    });
+    expect(token).toBe('verified-id-token');
   });
 });
 

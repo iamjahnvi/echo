@@ -8,7 +8,7 @@ import {
   sanitizeSegment,
   validateUploadInput,
 } from '../lib/uploads.js';
-import { createUploadCore } from '../handlers/uploads.js';
+import { createUploadCore, handler as uploadHandler } from '../handlers/uploads.js';
 import { createActionCore } from '../handlers/actions.js';
 
 function stubDoc(impl: (cmd: unknown) => Promise<unknown>) {
@@ -112,6 +112,16 @@ test('createUploadCore returns 401 without authentication', async () => {
     { bucket: 'b', sign: async () => 'x' },
   );
   assert.equal(r.statusCode, 401);
+});
+
+test('POST /uploads remains authenticated and returns CORS headers on gateway-facing errors', async () => {
+  const unauthenticated = await uploadHandler({
+    body: JSON.stringify({ clientActionId: 'a1', photoType: 'image/png', photoSize: 10 }),
+    requestContext: { authorizer: undefined },
+  } as never);
+  assert.equal(unauthenticated.statusCode, 401);
+  assert.equal(unauthenticated.headers?.['Access-Control-Allow-Origin'], 'http://localhost:5173');
+  assert.equal(unauthenticated.headers?.['Access-Control-Allow-Headers'], 'Content-Type,Authorization');
 });
 
 test('action rejects a photoKey issued to another user', async () => {

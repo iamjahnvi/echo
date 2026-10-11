@@ -41,6 +41,19 @@ Resources:
         Authorizers:
           CognitoAuth:
             UserPoolArn: !Ref ExistingUserPoolArn
+      GatewayResponses:
+        DEFAULT_4XX:
+          ResponseParameters:
+            Headers:
+              Access-Control-Allow-Origin: "'http://localhost:5173'"
+              Access-Control-Allow-Headers: "'Content-Type,Authorization'"
+              Access-Control-Allow-Methods: "'GET,POST,DELETE,OPTIONS'"
+        DEFAULT_5XX:
+          ResponseParameters:
+            Headers:
+              Access-Control-Allow-Origin: "'http://localhost:5173'"
+              Access-Control-Allow-Headers: "'Content-Type,Authorization'"
+              Access-Control-Allow-Methods: "'GET,POST,DELETE,OPTIONS'"
 
   HealthFunction:
     Type: AWS::Serverless::Function
@@ -137,6 +150,15 @@ Resources:
   PhotosBucket:
     Type: AWS::S3::Bucket
     Properties:
+      CorsConfiguration:
+        CorsRules:
+          - AllowedOrigins:
+              - http://localhost:5173
+            AllowedMethods:
+              - PUT
+            AllowedHeaders:
+              - Content-Type
+            MaxAge: 300
       # Private by default: block all public access, encrypt at rest, no website hosting.
       PublicAccessBlockConfiguration:
         BlockPublicAcls: true

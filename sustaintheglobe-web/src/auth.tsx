@@ -33,6 +33,13 @@ export function isValidAddress(address: string): boolean {
   return address.trim() !== '';
 }
 
+/** API Gateway REST Cognito authorizers without OAuth scopes expect ID tokens. */
+export function getApiIdToken(session: {
+  getIdToken: () => { getJwtToken: () => string };
+}): string {
+  return session.getIdToken().getJwtToken();
+}
+
 export function buildSignUpAttributes(email: string, address: string): CognitoUserAttribute[] {
   return [
     new CognitoUserAttribute({ Name: 'email', Value: email.trim() }),
@@ -78,7 +85,7 @@ export function mapAuthError(err: unknown): string {
 export interface AuthState {
   status: 'loading' | 'authed' | 'anon' | 'unconfirmed';
   email: string;
-  accessToken: string;
+  idToken: string;
   error: string;
   pendingEmail: string;
   signUp: (email: string, password: string, address: string) => Promise<void>;
@@ -119,7 +126,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const [status, setStatus] = useState<AuthState['status']>('loading');
   const [email, setEmail] = useState('');
-  const [accessToken, setAccessToken] = useState('');
+  const [idToken, setIdToken] = useState('');
   const [error, setError] = useState(config ? '' : COGNITO_SETUP_MESSAGE);
   const [pendingEmail, setPendingEmail] = useState('');
 
@@ -136,7 +143,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const applySession = (userEmail: string, token: string) => {
     setEmail(userEmail);
-    setAccessToken(token);
+    setIdToken(token);
     setPendingEmail('');
     setError('');
     setStatus('authed');
@@ -155,13 +162,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
     user.getSession((err: unknown, session: {
       isValid: () => boolean;
-      getAccessToken: () => { getJwtToken: () => string };
+      getIdToken: () => { getJwtToken: () => string };
     } | null) => {
       if (err || !session || !session.isValid()) {
         setStatus('anon');
         return;
       }
-      const token = session.getAccessToken().getJwtToken();
+      const token = getApiIdToken(session);
       user.getUserAttributes((attrErr: unknown, attrs?: { getValue: () => string; Name: string }[]) => {
         const mail =
           !attrErr && attrs
@@ -255,7 +262,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await new Promise<void>((resolve, reject) => {
       user.authenticateUser(details, {
         onSuccess: (session) => {
-          applySession(mail.trim(), session.getAccessToken().getJwtToken());
+          applySession(mail.trim(), getApiIdToken(session));
           resolve();
         },
         onFailure: (err) => reject(err),
@@ -269,7 +276,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signOut = () => {
     pool?.getCurrentUser()?.signOut();
     setEmail('');
-    setAccessToken('');
+    setIdToken('');
     setPendingEmail('');
     setError('');
     setStatus('anon');
@@ -277,7 +284,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const sessionExpired = () => {
     pool?.getCurrentUser()?.signOut();
-    setAccessToken('');
+    setIdToken('');
     setEmail('');
     setStatus('anon');
     setError('Session expired — please sign in again.');
@@ -286,7 +293,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const value: AuthState = {
     status,
     email,
-    accessToken,
+    idToken,
     error,
     pendingEmail,
     signUp,
