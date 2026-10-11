@@ -1,4 +1,5 @@
 import type { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
+import { CORS_HEADERS } from '../lib/cors.js';
 import { PutCommand, QueryCommand } from '@aws-sdk/lib-dynamodb';
 import { docClient, TABLE_NAME as DEFAULT_TABLE } from '../lib/dynamo.js';
 import {
@@ -26,7 +27,7 @@ function deps(): StoreDeps {
 function json(statusCode: number, body: unknown): APIGatewayProxyResult {
   return {
     statusCode,
-    headers: { 'Content-Type': 'application/json' },
+    headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   };
 }

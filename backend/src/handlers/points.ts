@@ -1,4 +1,5 @@
 import type { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
+import { CORS_HEADERS } from '../lib/cors.js';
 import { QueryCommand } from '@aws-sdk/lib-dynamodb';
 import { docClient, TABLE_NAME as DEFAULT_TABLE } from '../lib/dynamo.js';
 import {
@@ -53,7 +54,7 @@ export const handler = async (
   const r = await getPointsCore(getAuthIdentity(event));
   return {
     statusCode: r.statusCode,
-    headers: { 'Content-Type': 'application/json' },
+    headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
     body: JSON.stringify(r.body),
   };
 };

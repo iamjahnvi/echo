@@ -1,4 +1,5 @@
 import type { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
+import { CORS_HEADERS } from '../lib/cors.js';
 import { ScanCommand } from '@aws-sdk/lib-dynamodb';
 import { docClient, TABLE_NAME as DEFAULT_TABLE } from '../lib/dynamo.js';
 import {
@@ -90,7 +91,7 @@ export const handler = async (
   );
   return {
     statusCode: r.statusCode,
-    headers: { 'Content-Type': 'application/json' },
+    headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
     body: JSON.stringify(r.body),
   };
 };
