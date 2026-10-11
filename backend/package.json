@@ -1,7 +1,7 @@
 {
   "name": "sustain-the-globe-api",
   "version": "1.0.0",
-  "description": "SustainTheGlobe backend API (AWS SAM + Lambda nodejs24.x + DynamoDB + S3)",
+  "description": "EcoEcho backend API (AWS SAM + Lambda nodejs24.x + DynamoDB + S3)",
   "type": "commonjs",
   "engines": {
     "node": ">=20"

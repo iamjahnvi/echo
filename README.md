@@ -1,6 +1,6 @@
-# SustainTheGlobe (EcoEcho)
+# EcoEcho
 
-SustainTheGlobe is a React web client backed by an AWS SAM API. The authenticated application records environmental actions, awards server-computed points, supports private photo uploads, and displays a leaderboard. The API uses Cognito, API Gateway, Lambda, DynamoDB, and S3.
+EcoEcho is a React web client backed by an AWS SAM API. The authenticated application records environmental actions, awards server-computed points, supports private photo uploads, and displays a leaderboard. The API uses Cognito, API Gateway, Lambda, DynamoDB, and S3.
 
 ## Local web and API development
 

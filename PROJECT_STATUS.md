@@ -1,4 +1,4 @@
-# SustainTheGlobe — PROJECT_STATUS
+# EcoEcho — PROJECT_STATUS
 
 > Truthfulness rule: a feature is WORKING only if verified by a test or actual
 > execution. Unit-test success is NOT live-AWS proof. Nothing here has been
