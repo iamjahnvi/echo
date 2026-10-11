@@ -9,6 +9,7 @@ export interface AuthIdentity {
   /** Cognito `sub` claim — stable per user, used as the data owner id. */
   userId: string;
   email?: string;
+  address?: string;
 }
 
 interface AuthorizerShape {
@@ -24,9 +25,11 @@ export function getAuthIdentity(event: APIGatewayProxyEvent): AuthIdentity | nul
   const sub = claims?.sub;
   if (typeof sub !== 'string' || sub.trim() === '') return null;
   const email = claims?.email;
+  const address = claims?.address;
   return {
     userId: sub,
     email: typeof email === 'string' && email !== '' ? email : undefined,
+    address: typeof address === 'string' && address.trim() !== '' ? address : undefined,
   };
 }
 

@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { BrowserRouter, Routes, Route, Link } from 'react-router-dom';
 import { fetchHealth, getApiBaseUrl, getDevelopmentApiBaseUrl, listActions, getPoints, getMe, getLeaderboard, deleteUpload, submitAction, requestUploadUrl, putPhotoBytes, validatePhotoFile, newClientActionId, isSessionExpired } from './api';
 import type { ActionItem, LeaderEntry } from './api';
-import { AuthProvider, useAuth, isValidEmail } from './auth';
+import { AuthProvider, useAuth, isValidEmail, isValidAddress } from './auth';
 
 export function backendMode(): string {
   const v = (import.meta as never as { env: Record<string, string | undefined> }).env
@@ -148,6 +148,7 @@ function AuthScreen() {
   const auth = useAuth();
   const [tab, setTab] = useState<'in' | 'up'>('in');
   const [mail, setMail] = useState('');
+  const [address, setAddress] = useState('');
   const [pw, setPw] = useState('');
   const [code, setCode] = useState('');
   const [busy, setBusy] = useState(false);
@@ -217,13 +218,21 @@ function AuthScreen() {
             return;
           }
           if (tab === 'in') run(() => auth.signIn(mail, pw));
-          else run(() => auth.signUp(mail, pw));
+          else if (!isValidAddress(address)) {
+            setInfo('Enter your address.');
+          } else run(() => auth.signUp(mail, pw, address));
         }}
       >
         <label>
           Email
           <input value={mail} onChange={(e) => setMail(e.target.value)} />
         </label>
+        {tab === 'up' ? (
+          <label>
+            Address
+            <input value={address} onChange={(e) => setAddress(e.target.value)} required />
+          </label>
+        ) : null}
         <label>
           Password
           <input

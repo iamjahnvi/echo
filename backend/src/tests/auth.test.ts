@@ -9,16 +9,16 @@ function eventWith(authorizer: unknown): APIGatewayProxyEvent {
   } as unknown as APIGatewayProxyEvent;
 }
 
-test('getAuthIdentity reads sub+email from REST authorizer claims', () => {
+test('getAuthIdentity reads profile attributes from REST authorizer claims', () => {
   const id = getAuthIdentity(
-    eventWith({ claims: { sub: 'sub-1', email: 'a@example.com' } }),
+    eventWith({ claims: { sub: 'sub-1', email: 'a@example.com', address: '1 Main St' } }),
   );
-  assert.deepEqual(id, { userId: 'sub-1', email: 'a@example.com' });
+  assert.deepEqual(id, { userId: 'sub-1', email: 'a@example.com', address: '1 Main St' });
 });
 
 test('getAuthIdentity supports HTTP-API jwt.claims shape', () => {
   const id = getAuthIdentity(eventWith({ jwt: { claims: { sub: 'sub-2' } } }));
-  assert.deepEqual(id, { userId: 'sub-2', email: undefined });
+  assert.deepEqual(id, { userId: 'sub-2', email: undefined, address: undefined });
 });
 
 test('getAuthIdentity returns null for missing/empty/unsigned identity', () => {

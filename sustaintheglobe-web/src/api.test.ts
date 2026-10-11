@@ -312,10 +312,11 @@ describe('photo upload flow', () => {
 describe('profile, leaderboard, orphan cleanup', () => {
   it('getMe GETs /me with Bearer and returns the profile', async () => {
     const fetcher = vi.fn(async () =>
-      jsonResponse({ userId: 'sub-1', email: 'a@example.com' }),
+      jsonResponse({ userId: 'sub-1', email: 'a@example.com', address: '1 Main St' }),
     );
     const me = await getMe(BASE, TOKEN, fetcher);
     expect(me.email).toBe('a@example.com');
+    expect(me.address).toBe('1 Main St');
     const [url, init] = fetcher.mock.calls[0] as unknown as [string, RequestInit];
     expect(url).toBe(`${BASE}/me`);
     expect((init?.headers as Record<string, string>).Authorization).toBe(

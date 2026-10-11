@@ -16,6 +16,6 @@ export const handler = async (
   return {
     statusCode: 200,
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ userId: auth.userId, email: auth.email ?? null }),
+    body: JSON.stringify({ userId: auth.userId, email: auth.email ?? null, address: auth.address ?? null }),
   };
 };

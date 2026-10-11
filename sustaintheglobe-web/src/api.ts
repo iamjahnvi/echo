@@ -250,6 +250,7 @@ export async function getPoints(
 export interface UserProfile {
   userId: string;
   email: string | null;
+  address: string | null;
 }
 
 export interface LeaderEntry {

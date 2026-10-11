@@ -29,6 +29,17 @@ export function isValidEmail(email: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
 }
 
+export function isValidAddress(address: string): boolean {
+  return address.trim() !== '';
+}
+
+export function buildSignUpAttributes(email: string, address: string): CognitoUserAttribute[] {
+  return [
+    new CognitoUserAttribute({ Name: 'email', Value: email.trim() }),
+    new CognitoUserAttribute({ Name: 'address', Value: address.trim() }),
+  ];
+}
+
 /**
  * Maps Cognito errors to UI-safe messages. Returns the sentinel
  * 'UNCONFIRMED' when the account exists but email is not verified, so the
@@ -70,7 +81,7 @@ export interface AuthState {
   accessToken: string;
   error: string;
   pendingEmail: string;
-  signUp: (email: string, password: string) => Promise<void>;
+  signUp: (email: string, password: string, address: string) => Promise<void>;
   confirm: (code: string) => Promise<void>;
   resend: () => Promise<void>;
   signIn: (email: string, password: string) => Promise<void>;
@@ -167,15 +178,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return pool;
   };
 
-  const signUp: AuthState['signUp'] = async (mail, password) => {
+  const signUp: AuthState['signUp'] = async (mail, password, address) => {
     const p = needPool();
     if (!isValidEmail(mail)) throw new Error('Enter a valid email address.');
+    if (!isValidAddress(address)) throw new Error('Enter your address.');
     if (password.length < 8) throw new Error('Password needs at least 8 characters.');
     await new Promise<void>((resolve, reject) => {
       p.signUp(
         mail.trim(),
         password,
-        [new CognitoUserAttribute({ Name: 'email', Value: mail.trim() })],
+        buildSignUpAttributes(mail, address),
         [],
         (err, result) => {
           if (err || !result) {

@@ -22,13 +22,13 @@ function eventWithClaims(claims: unknown): APIGatewayProxyEvent {
   } as unknown as APIGatewayProxyEvent;
 }
 
-test('GET /me returns the token identity shape', async () => {
-  const ok = await meHandler(eventWithClaims({ sub: 'sub-1', email: 'a@b.c' }));
+test('GET /me returns the verified Cognito profile attributes', async () => {
+  const ok = await meHandler(eventWithClaims({ sub: 'sub-1', email: 'a@b.c', address: '1 Main St' }));
   assert.equal(ok.statusCode, 200);
-  assert.deepEqual(JSON.parse(ok.body), { userId: 'sub-1', email: 'a@b.c' });
+  assert.deepEqual(JSON.parse(ok.body), { userId: 'sub-1', email: 'a@b.c', address: '1 Main St' });
 
   const noMail = await meHandler(eventWithClaims({ sub: 'sub-2' }));
-  assert.deepEqual(JSON.parse(noMail.body), { userId: 'sub-2', email: null });
+  assert.deepEqual(JSON.parse(noMail.body), { userId: 'sub-2', email: null, address: null });
 
   const anon = await meHandler({} as APIGatewayProxyEvent);
   assert.equal(anon.statusCode, 401);

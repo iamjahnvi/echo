@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { getCognitoConfig, isValidEmail, mapAuthError } from './auth';
+import { buildSignUpAttributes, getCognitoConfig, isValidAddress, isValidEmail, mapAuthError } from './auth';
 
 describe('getCognitoConfig', () => {
   it('returns null when pool/client IDs are missing or placeholders', () => {
@@ -30,6 +30,16 @@ describe('isValidEmail', () => {
     expect(isValidEmail('bad')).toBe(false);
     expect(isValidEmail('a@b')).toBe(false);
     expect(isValidEmail('')).toBe(false);
+  });
+});
+
+describe('signup address', () => {
+  it('requires a nonblank address and sends Cognito standard address attribute', () => {
+    expect(isValidAddress('  ')).toBe(false);
+    expect(isValidAddress('  123 Main Street  ')).toBe(true);
+    expect(buildSignUpAttributes(' a@example.com ', ' 123 Main Street ')
+      .map((attribute) => [attribute.getName(), attribute.getValue()]))
+      .toEqual([['email', 'a@example.com'], ['address', '123 Main Street']]);
   });
 });
 
