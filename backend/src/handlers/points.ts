@@ -7,6 +7,7 @@ import {
   unauthorizedBody,
   type AuthIdentity,
 } from '../lib/auth.js';
+import { awardedPoints } from '../lib/verification.js';
 import type { StoreDeps } from './actions.js';
 
 function deps(): StoreDeps {
@@ -14,8 +15,10 @@ function deps(): StoreDeps {
 }
 
 /**
- * GET /points core: total = server-side sum of the CALLER's recorded action
- * points. Any query-string userId is ignored — no cross-user reads.
+ * GET /points core: total = server-side sum of the CALLER's APPROVED action
+ * points. Pending/rejected evidence contributes zero; pre-lifecycle legacy
+ * items (no status) keep counting as approved. Any query-string userId is
+ * ignored — no cross-user reads.
  */
 export async function getPointsCore(
   auth: AuthIdentity | null,
@@ -46,10 +49,7 @@ export async function getPointsCore(
     return { statusCode: 500, body: { message: 'Could not load points.' } };
   }
   const items = out.Items ?? [];
-  const totalPoints = items.reduce(
-    (sum, it) => sum + (typeof it.points === 'number' ? it.points : 0),
-    0,
-  );
+  const totalPoints = items.reduce((sum, it) => sum + awardedPoints(it), 0);
   return {
     statusCode: 200,
     body: { userId, totalPoints, actionCount: items.length },

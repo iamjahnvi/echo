@@ -344,7 +344,9 @@ function ActionsPanel({ apiBase, token, onSessionExpired }: { apiBase: string; t
         photoKey,
       }, token);
       uploadedKey = undefined; // recorded — no longer an orphan.
-      setStatus(`Recorded! +${r.pointsAwarded} pts for this submitted action.`);
+      setStatus(
+        `Submitted for verification (status: ${r.status}). Points are awarded only after approval — nothing yet.`,
+      );
       setNote('');
       setPhoto(null);
       await refresh();
@@ -363,7 +365,7 @@ function ActionsPanel({ apiBase, token, onSessionExpired }: { apiBase: string; t
   return (
     <section>
       <h2 className="text-xl font-bold">Log an action, earn points</h2>
-      <p>Points are awarded for each submitted action (recycle 10, transit 15, energy 20, cleanup 25, plant 30). Photos are stored privately; they are attached as evidence, not verification.</p>
+      <p>Submitted actions enter verification (pending) — points (recycle 10, transit 15, energy 20, cleanup 25, plant 30) are awarded only after approval. Photos are stored privately as evidence.</p>
       <p>Total points: {totalPoints === null ? '—' : totalPoints}</p>
       <form onSubmit={onSubmit}>
         <label>
@@ -392,7 +394,7 @@ function ActionsPanel({ apiBase, token, onSessionExpired }: { apiBase: string; t
       <ul>
         {actions.map((a) => (
           <li key={a.actionId}>
-            {a.actionType} +{a.points}pts{a.photoName ? ` (${a.photoName})` : ''}
+            {a.actionType} +{a.points}pts [{a.status ?? 'approved'}]{a.photoName ? ` (${a.photoName})` : ''}
             {a.note ? ` — ${a.note}` : ''}
           </li>
         ))}

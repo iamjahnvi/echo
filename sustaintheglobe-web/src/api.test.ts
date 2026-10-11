@@ -154,12 +154,13 @@ describe('submitAction', () => {
     actionType: 'recycle' as const,
   };
 
-  it('POSTs to /actions with a Bearer token and returns server-computed award', async () => {
+  it('POSTs to /actions with a Bearer token and returns the pending verification state', async () => {
     const fetcher = vi.fn(async () =>
-      jsonResponse({ actionId: 'a1', pointsAwarded: 10, createdAt: 'x' }),
+      jsonResponse({ actionId: 'a1', pointsAwarded: 0, status: 'pending', createdAt: 'x' }),
     );
     const r = await submitAction(BASE, input, TOKEN, fetcher);
-    expect(r.pointsAwarded).toBe(10);
+    expect(r.pointsAwarded).toBe(0);
+    expect(r.status).toBe('pending');
     const [url, init] = fetcher.mock.calls[0] as unknown as [string, RequestInit];
     expect(url).toBe(`${BASE}/actions`);
     expect((init?.body as string) ?? '').toContain('recycle');

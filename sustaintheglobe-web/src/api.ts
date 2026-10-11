@@ -174,6 +174,8 @@ export interface SubmitActionInput {
 export interface SubmitActionResult {
   actionId: string;
   pointsAwarded: number;
+  /** Verification lifecycle state (new submissions are pending). */
+  status: string;
   createdAt: string;
 }
 
@@ -181,6 +183,8 @@ export interface ActionItem {
   actionId: string;
   actionType: string;
   points: number;
+  /** Verification lifecycle state; absent only on pre-lifecycle items. */
+  status?: string;
   note?: string;
   photoName?: string;
   createdAt: string;

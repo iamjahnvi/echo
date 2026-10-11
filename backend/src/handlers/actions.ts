@@ -4,9 +4,13 @@ import { PutCommand, QueryCommand } from '@aws-sdk/lib-dynamodb';
 import { docClient, TABLE_NAME as DEFAULT_TABLE } from '../lib/dynamo.js';
 import {
   actionKeys,
-  calculatePoints,
   validateActionInput,
 } from '../lib/points.js';
+import {
+  awardedPoints,
+  displayStatus,
+  type VerificationStatus,
+} from '../lib/verification.js';
 import {
   getAuthIdentity,
   unauthorizedBody,
@@ -48,6 +52,11 @@ export interface ActionRecord {
   clientActionId: string;
   actionType: string;
   points: number;
+  /** Verification lifecycle state. Absent ONLY on pre-lifecycle legacy items. */
+  status?: VerificationStatus;
+  reviewedAt?: string;
+  reviewedBy?: string;
+  reviewReason?: string;
   note?: string;
   photoName?: string;
   photoSize?: number;
@@ -57,9 +66,12 @@ export interface ActionRecord {
 }
 
 /**
- * POST /actions core: authenticate → validate → server-computed points →
- * idempotent conditional write. Any caller-supplied userId is IGNORED; the
- * data owner is always the verified token identity.
+ * POST /actions core: authenticate → validate → store as PENDING with ZERO
+ * points → idempotent conditional write. Uploading evidence or submitting an
+ * action never awards points by itself; only the approve transition
+ * (trusted backend logic) sets the server-computed point value.
+ * Any caller-supplied userId is IGNORED; the data owner is always the
+ * verified token identity.
  */
 export async function createActionCore(
   rawBody: unknown,
@@ -74,7 +86,6 @@ export async function createActionCore(
   const v = validateActionInput(merged);
   if (!v.ok) return { statusCode: 400, body: { message: v.error } };
 
-  const points = calculatePoints(v.value.actionType);
   const { pk, sk } = actionKeys(v.value.userId, v.value.clientActionId);
   const createdAt = new Date().toISOString();
   const item: ActionRecord = {
@@ -83,7 +94,9 @@ export async function createActionCore(
     userId: v.value.userId,
     clientActionId: v.value.clientActionId,
     actionType: v.value.actionType,
-    points,
+    // Evidence submitted, not yet verified: zero points until approved.
+    points: 0,
+    status: 'pending',
     createdAt,
   };
   if (v.value.note !== undefined) item.note = v.value.note;
@@ -117,7 +130,9 @@ export async function createActionCore(
     statusCode: 201,
     body: {
       actionId: v.value.clientActionId,
-      pointsAwarded: points,
+      // Nothing awarded yet: verification decides (approve → rule value).
+      pointsAwarded: 0,
+      status: 'pending' as VerificationStatus,
       createdAt,
     },
   };
@@ -213,7 +228,9 @@ export async function listActionsCore(
     .map((it) => ({
       actionId: it.clientActionId,
       actionType: it.actionType,
-      points: it.points,
+      // Pending/rejected evidence contributes zero until approved.
+      points: awardedPoints(it),
+      status: displayStatus(it),
       note: it.note,
       photoName: it.photoName,
       photoKey: it.photoKey,

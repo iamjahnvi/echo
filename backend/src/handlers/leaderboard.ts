@@ -7,6 +7,7 @@ import {
   unauthorizedBody,
   type AuthIdentity,
 } from '../lib/auth.js';
+import { awardedPoints } from '../lib/verification.js';
 import type { StoreDeps } from './actions.js';
 
 function deps(): StoreDeps {
@@ -29,9 +30,10 @@ export function maskUserId(userId: string): string {
 }
 
 /**
- * GET /leaderboard core: aggregate every caller's own-visible totals.
- * Hackathon-scale design: single Scan (capped) then in-code aggregate/sort.
- * Protected endpoint — only signed-in users can view the board.
+ * GET /leaderboard core: aggregate APPROVED totals only. Pending/rejected
+ * evidence contributes zero points; pre-lifecycle legacy items (no status)
+ * keep counting as approved. Protected endpoint — only signed-in users can
+ * view the board.
  */
 export async function getLeaderboardCore(
   auth: AuthIdentity | null,
@@ -57,7 +59,8 @@ export async function getLeaderboardCore(
         TableName: d.table,
         FilterExpression: 'begins_with(sk, :prefix)',
         ExpressionAttributeValues: { ':prefix': 'ACTION#' },
-        ProjectionExpression: 'pk, points',
+        ProjectionExpression: 'pk, #st, points',
+        ExpressionAttributeNames: { '#st': 'status' },
         Limit: SCAN_LIMIT,
       }),
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -70,7 +73,7 @@ export async function getLeaderboardCore(
   for (const it of out.Items ?? []) {
     if (typeof it.pk !== 'string') continue;
     const cur = totals.get(it.pk) ?? { totalPoints: 0, actionCount: 0 };
-    cur.totalPoints += typeof it.points === 'number' ? it.points : 0;
+    cur.totalPoints += awardedPoints(it);
     cur.actionCount += 1;
     totals.set(it.pk, cur);
   }

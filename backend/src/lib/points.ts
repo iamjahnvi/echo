@@ -140,7 +140,10 @@ export function validateActionInput(
   if (photoType !== undefined) value.photoType = photoType;
   if (photoKey !== undefined) {
     // Enforce user binding without importing uploads lib (avoid cycles):
-    // key shape is uploads/<sanitized-userId>/<...>
+    // key shape is uploads/<sanitized-userId>/<sanitized-actionId>.<ext>
+    // (see lib/uploads.ts buildPhotoKey). The prefix alone is not enough:
+    // the key must have been issued for THIS action attempt, otherwise a
+    // caller could attach another action's (or another attempt's) photo.
     const seg = userId
       .trim()
       .replace(/[^A-Za-z0-9_-]+/g, '-')
@@ -150,6 +153,18 @@ export function validateActionInput(
     const expected = `uploads/${seg === '' ? 'user' : seg}/`;
     if (!(photoKey as string).startsWith(expected))
       return { ok: false, error: 'photoKey does not belong to this user.' };
+    const actionSeg = clientActionId
+      .trim()
+      .replace(/[^A-Za-z0-9_-]+/g, '-')
+      .replace(/-+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .slice(0, 64);
+    const rest = (photoKey as string).slice(expected.length);
+    const dot = rest.lastIndexOf('.');
+    const keyAction = dot === -1 ? rest : rest.slice(0, dot);
+    const keyExt = dot === -1 ? '' : rest.slice(dot + 1);
+    if (keyAction !== (actionSeg === '' ? 'user' : actionSeg) || keyExt === '')
+      return { ok: false, error: 'photoKey was not issued for this action.' };
     value.photoKey = (photoKey as string).trim();
   }
   return { ok: true, value };

@@ -63,7 +63,7 @@ function stubDoc(impl: (cmd: unknown) => Promise<unknown>) {
 
 const AUTH = { userId: 'sub-123', email: 'a@example.com' };
 
-test('createActionCore returns 201 with server-computed points + conditional write', async () => {
+test('createActionCore stores PENDING with zero points (evidence alone awards nothing)', async () => {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let seen: any = null;
   const d = stubDoc(async (cmd: unknown) => {
@@ -77,9 +77,11 @@ test('createActionCore returns 201 with server-computed points + conditional wri
     d,
   );
   assert.equal(r.statusCode, 201);
-  assert.equal(r.body.pointsAwarded, 30);
+  assert.equal(r.body.pointsAwarded, 0);
+  assert.equal(r.body.status, 'pending');
   assert.equal(seen.ConditionExpression, 'attribute_not_exists(pk) AND attribute_not_exists(sk)');
-  assert.equal(seen.Item.points, 30);
+  assert.equal(seen.Item.points, 0);
+  assert.equal(seen.Item.status, 'pending');
   assert.equal(seen.Item.pk, 'USER#sub-123');
 });
 
