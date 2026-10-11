@@ -13,6 +13,9 @@ export const ddbClient = new DynamoDBClient({
       ? {
           accessKeyId: process.env.AWS_ACCESS_KEY_ID ?? 'test',
           secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY ?? 'test',
+          ...(process.env.AWS_SESSION_TOKEN !== undefined
+            ? { sessionToken: process.env.AWS_SESSION_TOKEN }
+            : {}),
         }
       : undefined,
 });
@@ -27,6 +30,9 @@ export const s3Client = new S3Client({
       ? {
           accessKeyId: process.env.AWS_ACCESS_KEY_ID ?? 'test',
           secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY ?? 'test',
+          ...(process.env.AWS_SESSION_TOKEN !== undefined
+            ? { sessionToken: process.env.AWS_SESSION_TOKEN }
+            : {}),
         }
       : undefined,
 });

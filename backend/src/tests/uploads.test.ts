@@ -10,6 +10,9 @@ import {
 } from '../lib/uploads.js';
 import { createUploadCore, handler as uploadHandler } from '../handlers/uploads.js';
 import { createActionCore } from '../handlers/actions.js';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
+import { PutObjectCommand } from '@aws-sdk/client-s3';
+import { s3Client } from '../lib/dynamo.js';
 
 function stubDoc(impl: (cmd: unknown) => Promise<unknown>) {
   return { doc: { send: impl }, table: 't' };
@@ -74,6 +77,37 @@ test('createUploadCore signs one short-lived URL without credentials in output',
   assert.equal(r.body.expiresIn, 300);
   assert.deepEqual(signed, { b: 'photos-bucket', k: 'uploads/sub-123/a1.png', ct: 'image/png' });
   assert.ok(!JSON.stringify(r.body).includes('SECRET'));
+});
+
+test('presigned S3 PUT includes the Lambda temporary credential session token', async () => {
+  const previous = {
+    accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+    sessionToken: process.env.AWS_SESSION_TOKEN,
+  };
+  process.env.AWS_ACCESS_KEY_ID = 'test-access-key';
+  process.env.AWS_SECRET_ACCESS_KEY = 'test-secret-key';
+  process.env.AWS_SESSION_TOKEN = 'test-session-token';
+
+  try {
+    const url = await getSignedUrl(
+      s3Client,
+      new PutObjectCommand({
+        Bucket: 'test-photo-bucket',
+        Key: 'uploads/test-user/test-action.png',
+        ContentType: 'image/png',
+      }),
+      { expiresIn: 60 },
+    );
+    assert.equal(new URL(url).searchParams.get('X-Amz-Security-Token'), 'test-session-token');
+  } finally {
+    if (previous.accessKeyId === undefined) delete process.env.AWS_ACCESS_KEY_ID;
+    else process.env.AWS_ACCESS_KEY_ID = previous.accessKeyId;
+    if (previous.secretAccessKey === undefined) delete process.env.AWS_SECRET_ACCESS_KEY;
+    else process.env.AWS_SECRET_ACCESS_KEY = previous.secretAccessKey;
+    if (previous.sessionToken === undefined) delete process.env.AWS_SESSION_TOKEN;
+    else process.env.AWS_SESSION_TOKEN = previous.sessionToken;
+  }
 });
 
 test('createUploadCore returns 400 for invalid input, 500 when bucket/signing broken', async () => {
