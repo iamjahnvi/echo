@@ -1,0 +1,263 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: SustainTheGlobe backend API
+Globals:
+  Function:
+    Runtime: nodejs24.x
+    Timeout: 30
+    MemorySize: 256
+    Environment:
+      Variables:
+        TABLE_NAME: sustain-the-globe-dev
+Parameters:
+  ExistingUserPoolId:
+    Type: String
+    Default: ap-southeast-2_qYbDPKblw
+    Description: ID of the existing Cognito User Pool
+  ExistingUserPoolArn:
+    Type: String
+    Default: arn:aws:cognito-idp:ap-southeast-2:942511916226:userpool/ap-southeast-2_qYbDPKblw
+    Description: ARN of the existing Cognito User Pool
+  ExistingUserPoolClientId:
+    Type: String
+    Default: 6k68fr8g1l6dntcj9oaorvb9q1
+    Description: Public app client ID for the existing Cognito User Pool
+Resources:
+  ApiGatewayApi:
+    Type: AWS::Serverless::Api
+    Properties:
+      StageName: Prod
+      Cors:
+        AllowMethods: '''GET,POST,DELETE,OPTIONS'''
+        AllowHeaders: '''Content-Type,Authorization'''
+        AllowOrigin: '''*'''
+      Auth:
+        Authorizers:
+          CognitoAuth:
+            UserPoolArn:
+              Ref: ExistingUserPoolArn
+    Metadata:
+      SamResourceId: ApiGatewayApi
+  HealthFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: s3://aws-sam-cli-managed-default-samclisourcebucket-pv3pxxd80sng/ae0def8e14b9f3eded05ba1d61a24429
+      Handler: dist/handlers/health.handler
+      Events:
+        HealthApi:
+          Type: Api
+          Properties:
+            RestApiId:
+              Ref: ApiGatewayApi
+            Path: /health
+            Method: get
+    Metadata:
+      SamResourceId: HealthFunction
+  DataTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: sustain-the-globe-dev
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+      - AttributeName: pk
+        AttributeType: S
+      - AttributeName: sk
+        AttributeType: S
+      KeySchema:
+      - AttributeName: pk
+        KeyType: HASH
+      - AttributeName: sk
+        KeyType: RANGE
+    Metadata:
+      SamResourceId: DataTable
+  ActionsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: s3://aws-sam-cli-managed-default-samclisourcebucket-pv3pxxd80sng/ae0def8e14b9f3eded05ba1d61a24429
+      Handler: dist/handlers/actions.createHandler
+      Environment:
+        Variables:
+          TABLE_NAME:
+            Ref: DataTable
+      Policies:
+      - DynamoDBCrudPolicy:
+          TableName:
+            Ref: DataTable
+      Events:
+        CreateAction:
+          Type: Api
+          Properties:
+            RestApiId:
+              Ref: ApiGatewayApi
+            Path: /actions
+            Method: post
+            Auth:
+              Authorizer: CognitoAuth
+    Metadata:
+      SamResourceId: ActionsFunction
+  ActionsListFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: s3://aws-sam-cli-managed-default-samclisourcebucket-pv3pxxd80sng/ae0def8e14b9f3eded05ba1d61a24429
+      Handler: dist/handlers/actions.listHandler
+      Environment:
+        Variables:
+          TABLE_NAME:
+            Ref: DataTable
+      Policies:
+      - DynamoDBCrudPolicy:
+          TableName:
+            Ref: DataTable
+      Events:
+        ListActions:
+          Type: Api
+          Properties:
+            RestApiId:
+              Ref: ApiGatewayApi
+            Path: /actions
+            Method: get
+            Auth:
+              Authorizer: CognitoAuth
+    Metadata:
+      SamResourceId: ActionsListFunction
+  PointsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: s3://aws-sam-cli-managed-default-samclisourcebucket-pv3pxxd80sng/ae0def8e14b9f3eded05ba1d61a24429
+      Handler: dist/handlers/points.handler
+      Environment:
+        Variables:
+          TABLE_NAME:
+            Ref: DataTable
+      Policies:
+      - DynamoDBCrudPolicy:
+          TableName:
+            Ref: DataTable
+      Events:
+        GetPoints:
+          Type: Api
+          Properties:
+            RestApiId:
+              Ref: ApiGatewayApi
+            Path: /points
+            Method: get
+            Auth:
+              Authorizer: CognitoAuth
+    Metadata:
+      SamResourceId: PointsFunction
+  PhotosBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+        - ServerSideEncryptionByDefault:
+            SSEAlgorithm: AES256
+      VersioningConfiguration:
+        Status: Suspended
+    Metadata:
+      SamResourceId: PhotosBucket
+  UploadsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: s3://aws-sam-cli-managed-default-samclisourcebucket-pv3pxxd80sng/ae0def8e14b9f3eded05ba1d61a24429
+      Handler: dist/handlers/uploads.handler
+      Environment:
+        Variables:
+          PHOTOS_BUCKET:
+            Ref: PhotosBucket
+      Policies:
+      - S3WritePolicy:
+          BucketName:
+            Ref: PhotosBucket
+      - Statement:
+        - Sid: DeleteOrphanPhotos
+          Effect: Allow
+          Action: s3:DeleteObject
+          Resource:
+            Fn::Sub: ${PhotosBucket.Arn}/uploads/*
+      Events:
+        CreateUpload:
+          Type: Api
+          Properties:
+            RestApiId:
+              Ref: ApiGatewayApi
+            Path: /uploads
+            Method: post
+            Auth:
+              Authorizer: CognitoAuth
+        DeleteUpload:
+          Type: Api
+          Properties:
+            RestApiId:
+              Ref: ApiGatewayApi
+            Path: /uploads
+            Method: delete
+            Auth:
+              Authorizer: CognitoAuth
+    Metadata:
+      SamResourceId: UploadsFunction
+  MeFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: s3://aws-sam-cli-managed-default-samclisourcebucket-pv3pxxd80sng/ae0def8e14b9f3eded05ba1d61a24429
+      Handler: dist/handlers/me.handler
+      Events:
+        GetMe:
+          Type: Api
+          Properties:
+            RestApiId:
+              Ref: ApiGatewayApi
+            Path: /me
+            Method: get
+            Auth:
+              Authorizer: CognitoAuth
+    Metadata:
+      SamResourceId: MeFunction
+  LeaderboardFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: s3://aws-sam-cli-managed-default-samclisourcebucket-pv3pxxd80sng/ae0def8e14b9f3eded05ba1d61a24429
+      Handler: dist/handlers/leaderboard.handler
+      Environment:
+        Variables:
+          TABLE_NAME:
+            Ref: DataTable
+      Policies:
+      - DynamoDBCrudPolicy:
+          TableName:
+            Ref: DataTable
+      Events:
+        GetLeaderboard:
+          Type: Api
+          Properties:
+            RestApiId:
+              Ref: ApiGatewayApi
+            Path: /leaderboard
+            Method: get
+            Auth:
+              Authorizer: CognitoAuth
+    Metadata:
+      SamResourceId: LeaderboardFunction
+Outputs:
+  ApiUrl:
+    Description: Base URL of the API Gateway stage
+    Value:
+      Fn::Sub: https://${ApiGatewayApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/
+  UserPoolId:
+    Description: Cognito User Pool ID for web configuration (VITE_COGNITO_USER_POOL_ID)
+    Value:
+      Ref: ExistingUserPoolId
+  UserPoolClientId:
+    Description: Public SPA client ID for web configuration (VITE_COGNITO_CLIENT_ID,
+      no secret)
+    Value:
+      Ref: ExistingUserPoolClientId
+  Region:
+    Description: Deployment region for web configuration (VITE_COGNITO_REGION)
+    Value:
+      Ref: AWS::Region

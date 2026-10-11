@@ -13,7 +13,6 @@ env_vars = "local-env.json"
 [default.deploy.parameters]
 resolve_s3 = true
 s3_prefix = "sustain-the-globe-dev"
-region = "ap-southeast-2"
 capabilities = "CAPABILITY_IAM"
 confirm_changeset = true
 image_repositories = []
