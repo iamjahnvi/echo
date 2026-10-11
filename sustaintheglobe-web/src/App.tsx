@@ -98,7 +98,7 @@ function BrandMark({ onDark = false }: { onDark?: boolean }) {
       </span>
       <span className="leading-tight">
         <span className={`block text-[17px] font-bold tracking-tight ${onDark ? 'text-ivory' : 'text-ink'}`}>
-          SustainTheGlobe
+          EcoEcho
         </span>
         <span className={`block text-[11px] font-semibold uppercase tracking-[0.14em] ${onDark ? 'text-mist' : 'text-moss'}`}>
           Environmental action
@@ -153,7 +153,7 @@ function Home() {
       <div className="min-h-screen bg-ivory">
         <div className="mx-auto max-w-3xl px-5 py-16">
           <BrandMark />
-          <h1 className="font-editorial mt-8 text-4xl leading-tight">SustainTheGlobe</h1>
+          <h1 className="font-editorial mt-8 text-4xl leading-tight">EcoEcho</h1>
           <p className="mt-3 text-moss">Backend mode: {mode}</p>
           <p className="mt-1 text-moss">Backend status: {health}</p>
           <div className="card mt-6 p-6">
@@ -164,7 +164,7 @@ function Home() {
           </div>
           <nav className="mt-6">
             <Link className="font-semibold text-forest underline underline-offset-4" to="/about">
-              About SustainTheGlobe
+              About EcoEcho
             </Link>
           </nav>
         </div>
@@ -482,7 +482,7 @@ function AuthScreen({ health }: { health: string }) {
           </div>
           <div className="mt-2.5 hidden items-center justify-between text-sm lg:flex">
             <Link className="font-semibold text-forest underline-offset-4 hover:underline" to="/about">
-              About SustainTheGlobe
+              About EcoEcho
             </Link>
             <span className="hidden text-xs text-moss sm:block">{health}</span>
           </div>
@@ -1031,7 +1031,7 @@ function Dashboard({ apiBase, health }: { apiBase: string; health: string }) {
       {/* Header */}
       <header className="sticky top-0 z-10 border-b border-sand bg-ivory/95 backdrop-blur">
         <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-3 px-5 py-3.5">
-          <Link to="/" aria-label="SustainTheGlobe home">
+          <Link to="/" aria-label="EcoEcho home">
             <BrandMark />
           </Link>
           <nav className="ml-2 hidden items-center gap-5 text-sm font-semibold sm:flex" aria-label="Primary">
@@ -1093,7 +1093,7 @@ function Dashboard({ apiBase, health }: { apiBase: string; health: string }) {
           />
           <div className="space-y-6">
             <Leaderboard apiBase={apiBase} token={authed.idToken} onSessionExpired={auth.sessionExpired} refreshKey={refreshKey} />
-            <section aria-labelledby="verify-heading" className="card bg-deepforest p-6 text-ivory">
+            <section aria-labelledby="verify-heading" className="rounded-2xl border border-forest bg-deepforest p-6 text-ivory">
               <h2 id="verify-heading" className="font-editorial text-xl">
                 How verification works
               </h2>
@@ -1112,7 +1112,7 @@ function Dashboard({ apiBase, health }: { apiBase: string; health: string }) {
         </div>
 
         <footer className="mt-10 flex flex-wrap items-center justify-between gap-3 border-t border-sand pt-5 text-sm text-moss">
-          <span>SustainTheGlobe · Verified environmental action</span>
+          <span>EcoEcho · Verified environmental action</span>
           <Link className="font-semibold text-forest underline-offset-4 hover:underline" to="/about">
             About this project
           </Link>
@@ -1195,7 +1195,7 @@ function About() {
           Small actions, verified impact.
         </h1>
         <p className="mt-4 max-w-2xl text-[17px] leading-relaxed text-moss">
-          SustainTheGlobe is an environmental action platform backed by AWS. Members sign in
+          EcoEcho is an environmental action platform backed by AWS. Members sign in
           with Amazon Cognito, record everyday actions — recycling, cleanups, plantings,
           low-carbon transit and energy savings — and earn server-computed points once actions
           are approved. Photos are stored privately in S3 as verification evidence and are
@@ -1216,7 +1216,7 @@ function About() {
               Submissions start as pending. Points are awarded only after approval.
             </p>
           </div>
-          <div className="card bg-deepforest p-6 text-ivory">
+          <div className="rounded-2xl border border-forest bg-deepforest p-6 text-ivory">
             <h2 className="font-editorial text-xl">Privacy by design</h2>
             <ul className="mt-3 space-y-2 text-sm leading-relaxed text-ivory/85">
               <li>Sign-in is handled by Amazon Cognito; passwords never touch our code.</li>
@@ -1227,7 +1227,7 @@ function About() {
           </div>
         </div>
         <Link to="/" className="btn-primary mt-8">
-          Back to SustainTheGlobe
+          Back to EcoEcho
         </Link>
       </main>
     </div>
