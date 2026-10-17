@@ -448,42 +448,55 @@ function AuthScreen({ health }: { health: string }) {
                       <p className="field-hint mt-1">Required for registration.</p>
                     </div>
                   ) : null}
-                  <div className="relative">
+                  <div>
                     <label className="field-label" htmlFor="auth-password">
                       Password
                     </label>
-                    <input
-                      id="auth-password"
-                      type={showPassword ? 'text' : 'password'}
-                      className="field-input"
-                      value={pw}
-                      onChange={(e) => setPw(e.target.value)}
-                      autoComplete={tab === 'in' ? 'current-password' : 'new-password'}
-                      placeholder={showPassword ? '••••••••' : '••••••••'}
-                      aria-invalid={fieldError === 'password' ? true : undefined}
-                    />
-                    <span
-                      onClick={() => setShowPassword((prev) => !prev)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 cursor-pointer text-moss text-sm"
-                    >
-                      <svg
-                        width="18"
-                        height="18"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="1.8"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      >
-                        {showPassword
-                          ? 'M18 10c7.16 0 13-5.73 13-10S15.16 0 8 0S3 5.73 3 10c0 3.01 1.5 5.69 4 7.93v4.21'
-                          : 'M13.88 3.95a5.34 5.34 0 0 0-4.25 6.08c-.38 1.07-.82 2.11-.82 3.09 0 1.33.46 2.53.82 3.43A6.61 6.61 0 0 1 8 15.72a6.61 6.61 0 0 1-1.89-.58c-.37 1.01-.82 2.06-.82 3.13 0 1.66.8 3.19.82 3.57a5.36 5.36 0 0 0 4.25 5.99M18 10c7.16 0 13-5.73 13-10S15.16 0 8 0S3 5.73 3 10c0 3.01 1.5 5.69 4 7.93v4.21'}
-                        </svg>
-                      </span>
-                    {tab === 'up' ? (
-                      <p className="field-hint mt-1">8+ characters with upper/lowercase and a number.</p>
-                    ) : null}
+                      <div className="relative">
+                        <input
+                          id="auth-password"
+                          type={showPassword ? 'text' : 'password'}
+                          className="field-input pr-12"
+                          value={pw}
+                          onChange={(e) => setPw(e.target.value)}
+                          autoComplete={tab === 'in' ? 'current-password' : 'new-password'}
+                          placeholder="••••••••"
+                          aria-invalid={fieldError === 'password' ? true : undefined}
+                        />
+                        <button
+                          type="button"
+                          aria-label={showPassword ? 'Hide password' : 'Show password'}
+                          aria-controls="auth-password"
+                          onClick={() => setShowPassword((prev) => !prev)}
+                          className="absolute inset-y-0 right-0 flex w-11 items-center justify-center rounded-r-[0.65rem] text-moss hover:text-forest"
+                        >
+                          <svg
+                            width="18"
+                            height="18"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="1.8"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            aria-hidden="true"
+                          >
+                            {showPassword ? (
+                              <>
+                                <path d="M3 3l18 18M10.6 10.6a2 2 0 0 0 2.8 2.8M9.9 5.2A10.7 10.7 0 0 1 12 5.5c6 0 9.5 6.5 9.5 6.5a16 16 0 0 1-3.1 3.9M6.2 6.2A17 17 0 0 0 2.5 12S6 18.5 12 18.5a10.6 10.6 0 0 0 4-.8" />
+                              </>
+                            ) : (
+                              <>
+                                <path d="M2.5 12s3.5-6.5 9.5-6.5 9.5 6.5 9.5 6.5-3.5 6.5-9.5 6.5S2.5 12 2.5 12Z" />
+                                <circle cx="12" cy="12" r="3" />
+                              </>
+                            )}
+                          </svg>
+                        </button>
+                      </div>
+                      {tab === 'up' ? (
+                        <p className="field-hint mt-1">8+ characters with upper/lowercase and a number.</p>
+                      ) : null}
                   </div>
                   <button type="submit" className="btn-primary w-full" disabled={busy}>
                     {busy ? 'Working…' : tab === 'in' ? 'Sign in' : 'Create account'}
