@@ -250,14 +250,6 @@ function AuthScreen({ health }: { health: string }) {
           <circle cx="100" cy="100" r="70" fill="none" stroke="#d5dfd1" strokeWidth="1" />
           <circle cx="100" cy="100" r="44" fill="none" stroke="#dcbd97" strokeWidth="1" />
         </svg>
-        <svg
-          className="absolute -bottom-28 -left-20 h-[380px] w-[380px] opacity-15"
-          viewBox="0 0 200 200"
-          aria-hidden="true"
-        >
-          <path d="M100 10 C 60 70, 60 130, 100 190 M100 10 C 140 70, 140 130, 100 190" fill="none" stroke="#a8b5a0" strokeWidth="1.2" />
-          <path d="M100 60 C 80 70, 70 90, 68 110 M100 60 C 120 70, 130 90, 132 110" fill="none" stroke="#e9d5bd" strokeWidth="1.2" />
-        </svg>
         <div className="relative flex h-full min-h-0 flex-col justify-center px-14 py-8">
           <BrandMark onDark />
           <div className="mt-8 max-w-md">
